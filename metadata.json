@@ -1,0 +1,6 @@
+{
+  "name": "Xhipa Commerce Platform",
+  "description": "Multi-tenant digital commerce SaaS platform for small businesses, WhatsApp/Instagram sellers, and retailers with catalogue mode, guest checkout, Supabase RLS, and Paystack payments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

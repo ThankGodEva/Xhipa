@@ -1,0 +1,355 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { UserProfile, Business } from '../types';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
+interface AuthContextValue {
+  user: UserProfile | null;
+  business: Business | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (email: string, pass: string) => Promise<void>;
+  register: (fullName: string, email: string, pass: string) => Promise<void>;
+  logout: () => Promise<void>;
+  switchDemoRole: (role: 'merchant' | 'admin') => void;
+  resendVerificationEmail: (email?: string) => Promise<void>;
+  checkEmailVerification: () => Promise<boolean>;
+  markEmailAsVerified: () => void;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const DEMO_MERCHANT: UserProfile = {
+  id: 'usr_demo_merchant_001',
+  email: 'merchant@chibeauty.ng',
+  full_name: 'Chioma Okeke',
+  avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+  is_platform_admin: false,
+  is_email_verified: true,
+  email_confirmed_at: '2026-01-01T00:00:00.000Z',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
+
+const DEMO_ADMIN: UserProfile = {
+  id: 'usr_demo_admin_001',
+  email: 'admin@platform.ng',
+  full_name: 'Platform Administrator',
+  avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+  is_platform_admin: true,
+  is_email_verified: true,
+  email_confirmed_at: '2026-01-01T00:00:00.000Z',
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString()
+};
+
+const LOCAL_USERS_KEY = 'storefront_registered_users';
+
+interface LocalUserRecord {
+  profile: UserProfile;
+  password?: string;
+}
+
+function getStoredLocalUsers(): Record<string, LocalUserRecord> {
+  try {
+    const raw = localStorage.getItem(LOCAL_USERS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredLocalUser(record: LocalUserRecord) {
+  try {
+    const users = getStoredLocalUsers();
+    users[record.profile.email.toLowerCase()] = record;
+    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+  } catch (e) {
+    console.warn('Could not save user locally', e);
+  }
+}
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<UserProfile | null>(() => {
+    const savedToken = localStorage.getItem('storefront_auth_token');
+    if (!savedToken) return null;
+    if (savedToken === 'demo-admin-token') return DEMO_ADMIN;
+    if (savedToken === 'demo-merchant-token') return DEMO_MERCHANT;
+    const users = getStoredLocalUsers();
+    const match = Object.values(users).find(u => u.profile.id === savedToken || u.profile.email === savedToken);
+    if (match) return match.profile;
+    return null;
+  });
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    // If Supabase is configured with live keys, listen to auth state changes
+    if (isSupabaseConfigured) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          const isVerified = Boolean(session.user.email_confirmed_at || (session.user as any).confirmed_at);
+          const profile: UserProfile = {
+            id: session.user.id,
+            email: session.user.email || '',
+            full_name: session.user.user_metadata?.full_name || 'Merchant User',
+            is_platform_admin: session.user.user_metadata?.is_platform_admin || false,
+            is_email_verified: isVerified,
+            email_confirmed_at: session.user.email_confirmed_at || null,
+            created_at: session.user.created_at,
+            updated_at: session.user.updated_at || session.user.created_at
+          };
+          setUser(profile);
+          saveStoredLocalUser({ profile });
+          localStorage.setItem('storefront_auth_token', session.access_token);
+        }
+      }).catch((e) => console.warn('Supabase session load check:', e));
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          const isVerified = Boolean(session.user.email_confirmed_at || (session.user as any).confirmed_at);
+          const profile: UserProfile = {
+            id: session.user.id,
+            email: session.user.email || '',
+            full_name: session.user.user_metadata?.full_name || 'Merchant User',
+            is_platform_admin: session.user.user_metadata?.is_platform_admin || false,
+            is_email_verified: isVerified,
+            email_confirmed_at: session.user.email_confirmed_at || null,
+            created_at: session.user.created_at,
+            updated_at: session.user.updated_at || session.user.created_at
+          };
+          setUser(profile);
+          saveStoredLocalUser({ profile });
+          localStorage.setItem('storefront_auth_token', session.access_token);
+        }
+      });
+
+      return () => subscription.unsubscribe();
+    }
+  }, []);
+
+  const login = async (email: string, _pass: string) => {
+    setIsLoading(true);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    try {
+      // 1. Check for quick demo roles first
+      if (normalizedEmail === 'merchant@chibeauty.ng' || normalizedEmail.includes('merchant@')) {
+        setUser(DEMO_MERCHANT);
+        localStorage.setItem('storefront_auth_token', 'demo-merchant-token');
+        return;
+      }
+
+      if (normalizedEmail === 'admin@platform.ng' || normalizedEmail.includes('admin@')) {
+        setUser(DEMO_ADMIN);
+        localStorage.setItem('storefront_auth_token', 'demo-admin-token');
+        return;
+      }
+
+      // 2. If Supabase is configured, try Supabase auth
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: _pass });
+          if (!error && data.session) {
+            localStorage.setItem('storefront_auth_token', data.session.access_token);
+            const isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
+            const profile: UserProfile = {
+              id: data.user.id,
+              email: data.user.email || normalizedEmail,
+              full_name: data.user.user_metadata?.full_name || 'Merchant User',
+              is_platform_admin: data.user.user_metadata?.is_platform_admin || false,
+              is_email_verified: isVerified,
+              email_confirmed_at: data.user.email_confirmed_at || null,
+              created_at: data.user.created_at,
+              updated_at: data.user.updated_at || data.user.created_at
+            };
+            setUser(profile);
+            saveStoredLocalUser({ profile });
+            return;
+          }
+        } catch (supabaseErr) {
+          console.warn('Supabase remote sign-in fallback:', supabaseErr);
+        }
+      }
+
+      // 3. Check local registered accounts
+      const localUsers = getStoredLocalUsers();
+      const localMatch = localUsers[normalizedEmail];
+      if (localMatch) {
+        setUser(localMatch.profile);
+        localStorage.setItem('storefront_auth_token', localMatch.profile.id);
+        return;
+      }
+
+      // 4. If new user in preview, create profile and authenticate directly
+      const generatedName = normalizedEmail.split('@')[0].replace(/[._-]/g, ' ');
+      const formattedName = generatedName.charAt(0).toUpperCase() + generatedName.slice(1);
+      const newProfile: UserProfile = {
+        id: `usr_${Date.now()}`,
+        email: normalizedEmail,
+        full_name: formattedName || 'Store Merchant',
+        is_platform_admin: normalizedEmail.includes('admin'),
+        is_email_verified: false,
+        email_confirmed_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      saveStoredLocalUser({ profile: newProfile, password: _pass });
+      setUser(newProfile);
+      localStorage.setItem('storefront_auth_token', newProfile.id);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (fullName: string, email: string, pass: string) => {
+    setIsLoading(true);
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    try {
+      let isVerified = false;
+      let userId = `usr_${Date.now()}`;
+
+      if (isSupabaseConfigured) {
+        try {
+          const { data, error } = await supabase.auth.signUp({
+            email: normalizedEmail,
+            password: pass,
+            options: { data: { full_name: fullName } }
+          });
+          if (error) {
+            throw error;
+          }
+          if (data?.user) {
+            userId = data.user.id;
+            isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
+          }
+          if (data?.session) {
+            localStorage.setItem('storefront_auth_token', data.session.access_token);
+          }
+        } catch (supaErr: any) {
+          console.warn('Supabase remote sign-up warning:', supaErr);
+          if (supaErr?.message && !supaErr.message.includes('fetch')) {
+            throw supaErr;
+          }
+        }
+      }
+
+      const newUser: UserProfile = {
+        id: userId,
+        email: normalizedEmail,
+        full_name: fullName,
+        is_platform_admin: normalizedEmail.includes('admin'),
+        is_email_verified: isVerified,
+        email_confirmed_at: isVerified ? new Date().toISOString() : null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      saveStoredLocalUser({ profile: newUser, password: pass });
+      setUser(newUser);
+      localStorage.setItem('storefront_auth_token', newUser.id);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const resendVerificationEmail = async (targetEmail?: string) => {
+    const emailToUse = targetEmail || user?.email;
+    if (!emailToUse) throw new Error('No email provided');
+
+    if (isSupabaseConfigured) {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: emailToUse
+      });
+      if (error) throw error;
+    }
+  };
+
+  const checkEmailVerification = async (): Promise<boolean> => {
+    if (isSupabaseConfigured) {
+      try {
+        const { data: { user: supaUser } } = await supabase.auth.getUser();
+        if (supaUser) {
+          const isVerified = Boolean(supaUser.email_confirmed_at || (supaUser as any).confirmed_at);
+          if (isVerified && user) {
+            const updated = {
+              ...user,
+              is_email_verified: true,
+              email_confirmed_at: supaUser.email_confirmed_at || new Date().toISOString()
+            };
+            setUser(updated);
+            saveStoredLocalUser({ profile: updated });
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('Check email error:', e);
+      }
+    }
+
+    if (user?.is_email_verified) return true;
+    return false;
+  };
+
+  const markEmailAsVerified = () => {
+    if (!user) return;
+    const updated = {
+      ...user,
+      is_email_verified: true,
+      email_confirmed_at: new Date().toISOString()
+    };
+    setUser(updated);
+    saveStoredLocalUser({ profile: updated });
+  };
+
+  const logout = async () => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('Supabase signOut error:', e);
+      }
+    }
+    setUser(null);
+    setBusiness(null);
+    localStorage.removeItem('storefront_auth_token');
+  };
+
+  const switchDemoRole = (role: 'merchant' | 'admin') => {
+    if (role === 'admin') {
+      setUser(DEMO_ADMIN);
+      localStorage.setItem('storefront_auth_token', 'demo-admin-token');
+    } else {
+      setUser(DEMO_MERCHANT);
+      localStorage.setItem('storefront_auth_token', 'demo-merchant-token');
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        business,
+        isAuthenticated: Boolean(user),
+        isLoading,
+        login,
+        register,
+        logout,
+        switchDemoRole,
+        resendVerificationEmail,
+        checkEmailVerification,
+        markEmailAsVerified
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
