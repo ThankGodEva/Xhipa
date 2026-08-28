@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, Business } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { api } from '../lib/api';
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -70,6 +71,10 @@ function saveStoredLocalUser(record: LocalUserRecord) {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(() => {
+    if (isSupabaseConfigured) {
+      // In production Supabase mode, do not assume session before getSession resolves
+      return null;
+    }
     const savedToken = localStorage.getItem('storefront_auth_token');
     if (!savedToken) return null;
     if (savedToken === 'demo-admin-token') return DEMO_ADMIN;
@@ -80,11 +85,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return null;
   });
   const [business, setBusiness] = useState<Business | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(isSupabaseConfigured);
 
   useEffect(() => {
+    // Listen for unauthorized 401 events from API layer
+    const handleUnauthorized = () => {
+      setUser(null);
+      localStorage.removeItem('storefront_auth_token');
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+
     // If Supabase is configured with live keys, listen to auth state changes
     if (isSupabaseConfigured) {
+      setIsLoading(true);
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           const isVerified = Boolean(session.user.email_confirmed_at || (session.user as any).confirmed_at);
@@ -101,8 +114,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(profile);
           saveStoredLocalUser({ profile });
           localStorage.setItem('storefront_auth_token', session.access_token);
+        } else {
+          setUser(null);
+          localStorage.removeItem('storefront_auth_token');
         }
-      }).catch((e) => console.warn('Supabase session load check:', e));
+      }).catch((e) => {
+        console.warn('Supabase session load check:', e);
+        setUser(null);
+        localStorage.removeItem('storefront_auth_token');
+      }).finally(() => {
+        setIsLoading(false);
+      });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
@@ -120,18 +142,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(profile);
           saveStoredLocalUser({ profile });
           localStorage.setItem('storefront_auth_token', session.access_token);
+        } else {
+          setUser(null);
+          localStorage.removeItem('storefront_auth_token');
         }
+        setIsLoading(false);
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        subscription.unsubscribe();
+        window.removeEventListener('auth:unauthorized', handleUnauthorized);
+      };
     }
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
   }, []);
 
   const login = async (email: string, _pass: string) => {
     setIsLoading(true);
     const normalizedEmail = (email || '').trim().toLowerCase();
     try {
-      // 1. Check for quick demo roles first
+      // 1. If Supabase is configured, use authoritative Supabase authentication
+      if (isSupabaseConfigured) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: _pass });
+        if (error) {
+          throw new Error(error.message || 'Failed to authenticate with Supabase');
+        }
+        if (data?.session) {
+          localStorage.setItem('storefront_auth_token', data.session.access_token);
+          const isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
+          const profile: UserProfile = {
+            id: data.user.id,
+            email: data.user.email || normalizedEmail,
+            full_name: data.user.user_metadata?.full_name || 'Merchant User',
+            is_platform_admin: data.user.user_metadata?.is_platform_admin || false,
+            is_email_verified: isVerified,
+            email_confirmed_at: data.user.email_confirmed_at || null,
+            created_at: data.user.created_at,
+            updated_at: data.user.updated_at || data.user.created_at
+          };
+          setUser(profile);
+          saveStoredLocalUser({ profile });
+          return;
+        }
+      }
+
+      // 2. Local preview fallback ONLY when Supabase credentials are not configured in development
       if (normalizedEmail === 'merchant@chibeauty.ng' || normalizedEmail.includes('merchant@')) {
         setUser(DEMO_MERCHANT);
         localStorage.setItem('storefront_auth_token', 'demo-merchant-token');
@@ -142,32 +200,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(DEMO_ADMIN);
         localStorage.setItem('storefront_auth_token', 'demo-admin-token');
         return;
-      }
-
-      // 2. If Supabase is configured, try Supabase auth
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password: _pass });
-          if (!error && data.session) {
-            localStorage.setItem('storefront_auth_token', data.session.access_token);
-            const isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
-            const profile: UserProfile = {
-              id: data.user.id,
-              email: data.user.email || normalizedEmail,
-              full_name: data.user.user_metadata?.full_name || 'Merchant User',
-              is_platform_admin: data.user.user_metadata?.is_platform_admin || false,
-              is_email_verified: isVerified,
-              email_confirmed_at: data.user.email_confirmed_at || null,
-              created_at: data.user.created_at,
-              updated_at: data.user.updated_at || data.user.created_at
-            };
-            setUser(profile);
-            saveStoredLocalUser({ profile });
-            return;
-          }
-        } catch (supabaseErr) {
-          console.warn('Supabase remote sign-in fallback:', supabaseErr);
-        }
       }
 
       // 3. Check local registered accounts
@@ -208,12 +240,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let isVerified = false;
       let userId = `usr_${Date.now()}`;
 
+      let tokenToStore = userId;
       if (isSupabaseConfigured) {
         try {
+          const redirectUrl = `${window.location.origin}/login?verified=true`;
           const { data, error } = await supabase.auth.signUp({
             email: normalizedEmail,
             password: pass,
-            options: { data: { full_name: fullName } }
+            options: {
+              data: { full_name: fullName },
+              emailRedirectTo: redirectUrl
+            }
           });
           if (error) {
             throw error;
@@ -221,9 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data?.user) {
             userId = data.user.id;
             isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
-          }
-          if (data?.session) {
-            localStorage.setItem('storefront_auth_token', data.session.access_token);
+            tokenToStore = data.session?.access_token || data.user.id;
           }
         } catch (supaErr: any) {
           console.warn('Supabase remote sign-up warning:', supaErr);
@@ -246,7 +281,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       saveStoredLocalUser({ profile: newUser, password: pass });
       setUser(newUser);
-      localStorage.setItem('storefront_auth_token', newUser.id);
+      localStorage.setItem('storefront_auth_token', tokenToStore);
     } finally {
       setIsLoading(false);
     }
@@ -257,9 +292,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!emailToUse) throw new Error('No email provided');
 
     if (isSupabaseConfigured) {
+      const redirectUrl = `${window.location.origin}/login?verified=true`;
       const { error } = await supabase.auth.resend({
         type: 'signup',
-        email: emailToUse
+        email: emailToUse,
+        options: {
+          emailRedirectTo: redirectUrl
+        }
       });
       if (error) throw error;
     }
@@ -268,12 +307,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const checkEmailVerification = async (): Promise<boolean> => {
     if (isSupabaseConfigured) {
       try {
-        const { data: { user: supaUser } } = await supabase.auth.getUser();
+        // 1. Try refreshing session in Supabase client
+        const { data: refreshData } = await supabase.auth.refreshSession();
+        const supaUser = refreshData?.user || (await supabase.auth.getUser()).data?.user;
         if (supaUser) {
           const isVerified = Boolean(supaUser.email_confirmed_at || (supaUser as any).confirmed_at);
-          if (isVerified && user) {
+          if (isVerified) {
             const updated = {
-              ...user,
+              ...(user || {
+                id: supaUser.id,
+                email: supaUser.email || '',
+                full_name: supaUser.user_metadata?.full_name || 'Merchant User',
+                is_platform_admin: false,
+                created_at: supaUser.created_at,
+                updated_at: supaUser.updated_at || supaUser.created_at
+              }),
               is_email_verified: true,
               email_confirmed_at: supaUser.email_confirmed_at || new Date().toISOString()
             };
@@ -283,7 +331,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (e) {
-        console.warn('Check email error:', e);
+        console.warn('Supabase direct session check warning:', e);
+      }
+
+      // 2. Authoritatively query the backend verification check endpoint
+      try {
+        const status = await api.checkEmailStatus(user?.email, user?.id);
+        if (status?.isVerified) {
+          const updated = {
+            ...(user || {
+              id: user?.id || `usr_${Date.now()}`,
+              email: user?.email || '',
+              full_name: user?.full_name || 'Merchant User',
+              is_platform_admin: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }),
+            is_email_verified: true,
+            email_confirmed_at: status.emailConfirmedAt || new Date().toISOString()
+          };
+          setUser(updated);
+          saveStoredLocalUser({ profile: updated });
+          return true;
+        }
+      } catch (e) {
+        console.warn('Backend email status check warning:', e);
       }
     }
 

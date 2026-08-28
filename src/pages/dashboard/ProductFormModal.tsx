@@ -446,15 +446,10 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                 )}
               </div>
               <div className="text-xs font-semibold text-slate-800 flex items-center gap-1.5 justify-center">
-                <span>{isUploadingImages ? 'Uploading images to Cloudflare R2 bucket...' : 'Click to upload images from your device or drag and drop'}</span>
+                <span>{isUploadingImages ? 'Uploading images...' : 'Click to upload images from your device or drag and drop'}</span>
               </div>
               <div className="flex items-center gap-2 text-2xs text-slate-400">
                 <span>PNG, JPG, WEBP • Multiple files supported</span>
-                <span>•</span>
-                <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
-                  <Cloud className="w-3 h-3" />
-                  <span>Cloudflare R2 Bucket</span>
-                </span>
               </div>
             </div>
           </div>

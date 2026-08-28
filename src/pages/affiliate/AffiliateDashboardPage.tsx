@@ -25,8 +25,12 @@ import { AffiliateDashboardStats, AffiliatePayoutDetails, AppNotification } from
 import { formatCurrency } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export const AffiliateDashboardPage: React.FC = () => {
+  const { user, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState<AffiliateDashboardStats | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -57,6 +61,10 @@ export const AffiliateDashboardPage: React.FC = () => {
         setAccountName(dashData.affiliate.payout_details.account_name || '');
       }
     } catch (err: any) {
+      if (err?.message?.includes('session token') || err?.message?.includes('UNAUTHORIZED')) {
+        navigate('/login', { replace: true });
+        return;
+      }
       console.error('Failed to load affiliate dashboard:', err);
       error(err.message || 'Could not load affiliate data');
     } finally {
@@ -65,8 +73,14 @@ export const AffiliateDashboardPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!authLoading) {
+      if (!user) {
+        navigate('/login', { replace: true, state: { from: '/affiliate/dashboard' } });
+        return;
+      }
+      loadData();
+    }
+  }, [user, authLoading, navigate]);
 
   const handleCopyLink = () => {
     if (!stats?.referral_url) return;

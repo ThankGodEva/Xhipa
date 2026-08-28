@@ -24,7 +24,7 @@ export const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [subscription, setSubscription] = useState<any>(null);
-  const [storeSlug, setStoreSlug] = useState('chi-beauty');
+  const [storeSlug, setStoreSlug] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -54,7 +54,7 @@ export const ProductsPage: React.FC = () => {
       setProducts(prodsRes.products || []);
       setCategories(catsRes.categories || []);
       setSubscription(subRes);
-      setStoreSlug(bizRes.store?.slug || 'chi-beauty');
+      setStoreSlug(bizRes.store?.slug || '');
     } catch (err) {
       console.error('Failed to load products:', err);
     } finally {

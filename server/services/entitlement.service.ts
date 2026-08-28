@@ -1,37 +1,63 @@
-import { db } from '../data/store';
+import { subscriptionRepository } from '../repositories/subscription.repository';
+import { productRepository } from '../repositories/product.repository';
 import { SubscriptionPlan } from '../../src/types';
 
 export class EntitlementService {
-  getBusinessPlan(businessId: string): SubscriptionPlan {
-    const sub = db.subscriptions.get(businessId);
+  async getBusinessPlanAsync(businessId: string): Promise<SubscriptionPlan> {
+    const sub = await subscriptionRepository.getSubscriptionByBusinessId(businessId);
     const planId = sub?.plan_id || 'free';
-    const plan = db.subscriptionPlans.get(planId);
+    const plan = await subscriptionRepository.getPlanById(planId);
     if (!plan) {
-      return db.subscriptionPlans.get('free')!;
+      const freePlan = await subscriptionRepository.getPlanById('free');
+      if (freePlan) return freePlan;
+      return {
+        id: 'free',
+        name: 'Free Starter',
+        description: 'Perfect for new sellers testing online orders.',
+        price_monthly: 0,
+        currency: 'NGN',
+        max_products: 5,
+        can_checkout: false,
+        remove_branding: false,
+        custom_domain: false,
+        advanced_analytics: false,
+        is_active: true,
+        features: ['5 Products', 'WhatsApp Ordering', 'Mobile Storefront']
+      };
     }
     return plan;
   }
 
-  can(businessId: string, feature: 'can_checkout' | 'remove_branding' | 'custom_domain' | 'advanced_analytics'): boolean {
-    const plan = this.getBusinessPlan(businessId);
+  async canAsync(
+    businessId: string,
+    feature: 'can_checkout' | 'remove_branding' | 'custom_domain' | 'advanced_analytics'
+  ): Promise<boolean> {
+    const plan = await this.getBusinessPlanAsync(businessId);
     return Boolean(plan[feature]);
   }
 
-  getProductLimit(businessId: string): number {
-    const plan = this.getBusinessPlan(businessId);
+  async getProductLimitAsync(businessId: string): Promise<number> {
+    const plan = await this.getBusinessPlanAsync(businessId);
     return plan.max_products; // -1 means unlimited
   }
 
-  canAddProduct(businessId: string): { allowed: boolean; currentCount: number; maxAllowed: number; message?: string } {
-    const maxAllowed = this.getProductLimit(businessId);
-    const currentCount = Array.from(db.products.values()).filter(p => p.business_id === businessId && p.status !== 'archived').length;
+  async canAddProductAsync(businessId: string): Promise<{
+    allowed: boolean;
+    currentCount: number;
+    maxAllowed: number;
+    message?: string;
+  }> {
+    const [maxAllowed, currentCount, plan] = await Promise.all([
+      this.getProductLimitAsync(businessId),
+      productRepository.countProducts(businessId),
+      this.getBusinessPlanAsync(businessId)
+    ]);
 
     if (maxAllowed === -1) {
       return { allowed: true, currentCount, maxAllowed };
     }
 
     if (currentCount >= maxAllowed) {
-      const plan = this.getBusinessPlan(businessId);
       return {
         allowed: false,
         currentCount,

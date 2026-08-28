@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import { storeService } from '../services/store.service';
-import { db } from '../data/store';
 
 const router = Router();
 
@@ -8,10 +7,10 @@ const router = Router();
  * GET /api/storefront/:slug
  * Resolves public storefront bundle by store slug
  */
-router.get('/:slug', (req: Request, res: Response) => {
+router.get('/:slug', async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
-    const bundle = storeService.getPublicStorefront(slug);
+    const bundle = await storeService.getPublicStorefront(slug);
 
     if (!bundle) {
       return res.status(404).json({
@@ -35,10 +34,10 @@ router.get('/:slug', (req: Request, res: Response) => {
 /**
  * GET /api/storefront/:slug/product/:productSlug
  */
-router.get('/:slug/product/:productSlug', (req: Request, res: Response) => {
+router.get('/:slug/product/:productSlug', async (req: Request, res: Response) => {
   try {
     const { slug, productSlug } = req.params;
-    const bundle = storeService.getPublicStorefront(slug);
+    const bundle = await storeService.getPublicStorefront(slug);
 
     if (!bundle) {
       return res.status(404).json({

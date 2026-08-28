@@ -1,52 +1,63 @@
-import { db } from '../data/store';
+import { merchantRepository } from '../repositories/merchant.repository';
+import { productRepository } from '../repositories/product.repository';
+import { storyRepository } from '../repositories/story.repository';
 import { PublicStorefrontBundle } from '../../src/types';
+import { DEMO_STORES_MAP } from '../../src/lib/demoStores';
+import { normalizeMediaUrl } from './r2Storage.service';
 
 export class StoreService {
   /**
-   * Resolves a public storefront bundle by slug
+   * Resolves a public storefront bundle by store/business slug
    */
-  getPublicStorefront(slug: string): PublicStorefrontBundle | null {
+  async getPublicStorefront(slug: string): Promise<PublicStorefrontBundle | null> {
     const cleanSlug = slug.toLowerCase().trim();
-    
-    // Find store
-    const store = Array.from(db.stores.values()).find(s => s.slug === cleanSlug && s.status === 'published');
-    if (!store) {
-      return null;
+
+    // 0. Check built-in demo stores
+    if (DEMO_STORES_MAP[cleanSlug]) {
+      return DEMO_STORES_MAP[cleanSlug];
     }
 
-    // Find business
-    const business = db.businesses.get(store.business_id);
+    // 1. Resolve business by slug
+    const business = await merchantRepository.getBusinessBySlug(cleanSlug);
     if (!business || business.status !== 'active') {
       return null;
     }
 
-    // Find settings
-    const settings = db.storeSettings.get(business.id);
-    if (!settings) {
+    // Normalize logo & banner urls
+    if (business.logo_url) {
+      business.logo_url = normalizeMediaUrl(business.logo_url);
+    }
+    if (business.banner_url) {
+      business.banner_url = normalizeMediaUrl(business.banner_url);
+    }
+
+    // 2. Resolve store & settings
+    const [store, settings, categories, products, stories] = await Promise.all([
+      merchantRepository.getStoreByBusinessId(business.id),
+      merchantRepository.getStoreSettings(business.id),
+      productRepository.getCategories(business.id),
+      productRepository.getProducts(business.id, { status: 'published' }),
+      storyRepository.getStoriesByBusinessId(business.id)
+    ]);
+
+    if (!store || !settings) {
       return null;
     }
 
-    // Find published categories
-    const categories = Array.from(db.categories.values())
-      .filter(c => c.business_id === business.id && c.is_active)
-      .sort((a, b) => a.sort_order - b.sort_order);
+    if (settings.banner_url) {
+      settings.banner_url = normalizeMediaUrl(settings.banner_url);
+    }
 
-    // Find published products
-    const products = Array.from(db.products.values())
-      .filter(p => p.business_id === business.id && p.status === 'published')
-      .map(p => ({
-        ...p,
-        category: categories.find(c => c.id === p.category_id)
-      }));
-
-    // Find storefront stories
-    const stories = db.getStoriesForBusiness(business.id);
+    // Only allow active published store
+    if (store.status !== 'published') {
+      return null;
+    }
 
     return {
       business,
       store,
       settings,
-      categories,
+      categories: categories.filter(c => c.is_active),
       products,
       stories
     };

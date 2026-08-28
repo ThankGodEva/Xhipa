@@ -273,10 +273,6 @@ export const StoreStoriesManager: React.FC<StoreStoriesManagerProps> = ({ produc
                 <label className="block text-xs font-semibold text-slate-700">
                   Cover Thumbnail Image <span className="text-red-500">*</span>
                 </label>
-                <span className="inline-flex items-center gap-1 text-3xs text-emerald-700 font-medium bg-emerald-50 px-1.5 py-0.5 rounded">
-                  <Cloud className="w-2.5 h-2.5" />
-                  Cloudflare R2
-                </span>
               </div>
               <input
                 type="file"
@@ -290,7 +286,7 @@ export const StoreStoriesManager: React.FC<StoreStoriesManagerProps> = ({ produc
                   try {
                     const res = await api.uploadMedia(file, { folder: 'stories' });
                     updateCurrentStory(s => ({ ...s, coverImage: res.url }));
-                    success('Story cover uploaded to Cloudflare R2 bucket');
+                    success('Story cover uploaded successfully');
                   } catch (err: any) {
                     error(err.message || 'Failed to upload cover');
                   } finally {
@@ -448,7 +444,7 @@ export const StoreStoriesManager: React.FC<StoreStoriesManagerProps> = ({ produc
                           try {
                             const res = await api.uploadMedia(file, { folder: 'stories' });
                             handleUpdateSlide(slideIdx, 'image', res.url);
-                            success('Slide image uploaded to Cloudflare R2 bucket');
+                            success('Slide image uploaded successfully');
                           } catch (err: any) {
                             error(err.message || 'Failed to upload slide image');
                           } finally {

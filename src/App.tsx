@@ -31,6 +31,9 @@ import { AdminAffiliatesPage } from './pages/admin/AdminAffiliatesPage';
 // Storefront (Public Customer facing)
 import { StorefrontHome } from './pages/storefront/StorefrontHome';
 import { StorefrontProductDetail } from './pages/storefront/StorefrontProductDetail';
+import { StorefrontCheckoutPage } from './pages/storefront/StorefrontCheckoutPage';
+import { OrderTrackingPage } from './pages/storefront/OrderTrackingPage';
+import { PaymentCallbackPage } from './pages/storefront/PaymentCallbackPage';
 
 export default function App() {
   return (
@@ -46,6 +49,12 @@ export default function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/onboarding" element={<OnboardingWizard />} />
+
+              {/* Payment Callback */}
+              <Route path="/payment/callback" element={<PaymentCallbackPage />} />
+
+              {/* Global Order Tracking */}
+              <Route path="/orders/track/:orderNumber" element={<OrderTrackingPage />} />
 
               {/* Merchant Dashboard Protected Area */}
               <Route
@@ -119,8 +128,12 @@ export default function App() {
 
               {/* Storefront Routes (Dual pattern: /store/:storeSlug and /:storeSlug) */}
               <Route path="/store/:storeSlug" element={<StorefrontHome />} />
+              <Route path="/store/:storeSlug/checkout" element={<StorefrontCheckoutPage />} />
+              <Route path="/store/:storeSlug/track/:orderNumber" element={<OrderTrackingPage />} />
               <Route path="/store/:storeSlug/product/:productSlug" element={<StorefrontProductDetail />} />
               <Route path="/:storeSlug" element={<StorefrontHome />} />
+              <Route path="/:storeSlug/checkout" element={<StorefrontCheckoutPage />} />
+              <Route path="/:storeSlug/track/:orderNumber" element={<OrderTrackingPage />} />
               <Route path="/:storeSlug/product/:productSlug" element={<StorefrontProductDetail />} />
 
               {/* Fallback */}

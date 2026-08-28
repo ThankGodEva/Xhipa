@@ -1,5 +1,6 @@
 import { AppNotification, NotificationType } from '../../src/types';
-import { db } from '../data/store';
+import { getRequiredSupabase } from '../lib/supabase';
+import { normalizeDatabaseError } from '../lib/errors';
 
 export class NotificationService {
   /**
@@ -12,56 +13,101 @@ export class NotificationService {
     message: string;
     data?: Record<string, any>;
   }): Promise<AppNotification> {
-    const notification: AppNotification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      user_id: params.userId,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      data: params.data,
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
+    const now = new Date().toISOString();
+    const supabase = getRequiredSupabase();
 
-    db.notifications.set(notification.id, notification);
-    return notification;
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: params.userId,
+          type: params.type,
+          title: params.title,
+          message: params.message,
+          data: params.data || {},
+          is_read: false,
+          created_at: now
+        })
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      return {
+        id: data.id,
+        user_id: data.user_id,
+        type: data.type,
+        title: data.title,
+        message: data.message,
+        data: data.data,
+        is_read: data.is_read,
+        created_at: data.created_at
+      };
+    } catch (err) {
+      throw normalizeDatabaseError(err);
+    }
   }
 
   /**
    * Retrieves notifications for a given user ordered newest first.
    */
-  getUserNotifications(userId: string): AppNotification[] {
-    return Array.from(db.notifications.values())
-      .filter(n => n.user_id === userId)
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  async getUserNotifications(userId: string): Promise<AppNotification[]> {
+    const supabase = getRequiredSupabase();
+
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []) as AppNotification[];
+    } catch (err) {
+      throw normalizeDatabaseError(err);
+    }
   }
 
   /**
    * Marks a notification as read.
    */
-  markAsRead(notificationId: string, userId: string): boolean {
-    const notif = db.notifications.get(notificationId);
-    if (notif && notif.user_id === userId) {
-      notif.is_read = true;
-      db.notifications.set(notif.id, notif);
+  async markAsRead(notificationId: string, userId: string): Promise<boolean> {
+    const supabase = getRequiredSupabase();
+
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
       return true;
+    } catch (err) {
+      throw normalizeDatabaseError(err);
     }
-    return false;
   }
 
   /**
    * Marks all notifications as read for a user.
    */
-  markAllAsRead(userId: string): number {
-    let count = 0;
-    for (const notif of db.notifications.values()) {
-      if (notif.user_id === userId && !notif.is_read) {
-        notif.is_read = true;
-        db.notifications.set(notif.id, notif);
-        count++;
-      }
+  async markAllAsRead(userId: string): Promise<number> {
+    const supabase = getRequiredSupabase();
+
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('user_id', userId)
+        .eq('is_read', false)
+        .select('id');
+
+      if (error) throw error;
+      return (data || []).length;
+    } catch (err) {
+      throw normalizeDatabaseError(err);
     }
-    return count;
   }
 }
 

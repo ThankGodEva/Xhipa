@@ -17,7 +17,7 @@ import {
   X
 } from 'lucide-react';
 import { Product, StoreSettings, Business } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, resolveMediaUrl } from '../../lib/utils';
 import { TikTokPlayer } from '../common/TikTokPlayer';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
@@ -113,7 +113,7 @@ export const SocialFeedCard: React.FC<SocialFeedCardProps> = ({
         <div className="flex items-center gap-3">
           <div className="p-0.5 rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-emerald-500">
             <img
-              src={business.logo_url || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=100'}
+              src={resolveMediaUrl(business.logo_url) || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=100'}
               alt={business.name}
               className="w-9 h-9 rounded-full object-cover border border-white"
             />

@@ -52,13 +52,23 @@ export const AdminDashboard: React.FC = () => {
   const [isSavingPlan, setIsSavingPlan] = useState<boolean>(false);
   const [isTogglingAffiliate, setIsTogglingAffiliate] = useState<boolean>(false);
 
-  const { switchDemoRole } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { success, error } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    if (!authLoading) {
+      if (!user) {
+        navigate('/login', { replace: true, state: { from: '/admin' } });
+        return;
+      }
+      if (!user.is_platform_admin) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      loadAdminData();
+    }
+  }, [user, authLoading, navigate]);
 
   const loadAdminData = async () => {
     setIsLoading(true);
@@ -72,7 +82,11 @@ export const AdminDashboard: React.FC = () => {
       setBusinesses(bizRes.businesses || []);
       setPlans(plansRes || []);
       setPlatformSettings(settingsRes);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message?.includes('session token') || err?.message?.includes('UNAUTHORIZED')) {
+        navigate('/login', { replace: true });
+        return;
+      }
       console.error('Failed to load admin overview:', err);
     } finally {
       setIsLoading(false);
@@ -193,11 +207,10 @@ export const AdminDashboard: React.FC = () => {
             size="sm"
             className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
             onClick={() => {
-              switchDemoRole('merchant');
               navigate('/dashboard');
             }}
           >
-            Switch to Merchant View
+            Go to Merchant Dashboard
           </Button>
         </div>
       </header>

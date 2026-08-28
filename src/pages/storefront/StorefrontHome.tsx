@@ -31,7 +31,10 @@ import { SocialFeedCard } from '../../components/storefront/SocialFeedCard';
 import { SocialReviewsTab } from '../../components/storefront/SocialReviewsTab';
 import { CartDrawer } from '../../components/storefront/CartDrawer';
 import { WhatsAppOrderModal } from '../../components/storefront/WhatsAppOrderModal';
+import { DemoStoreBanner } from '../../components/storefront/DemoStoreBanner';
+import { isDemoStoreSlug } from '../../lib/demoStores';
 import { Button } from '../../components/common/Button';
+import { resolveMediaUrl } from '../../lib/utils';
 
 type StoreViewTab = 'grid' | 'feed' | 'reviews' | 'about';
 
@@ -53,6 +56,8 @@ export const StorefrontHome: React.FC = () => {
   // Show nav header only when scrolling past the banner and profile
   const [showNavHeader, setShowNavHeader] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+
+  const isDemo = isDemoStoreSlug(storeSlug);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -130,7 +135,7 @@ export const StorefrontHome: React.FC = () => {
     setActiveStoryGroup({
       id: 'welcome',
       title: 'Welcome',
-      coverImage: business.logo_url || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
+      coverImage: resolveMediaUrl(business.logo_url) || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
       slides: [
         {
           id: 'slide-1',
@@ -153,6 +158,9 @@ export const StorefrontHome: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col">
+      {/* Sample Demo Store Banner */}
+      {isDemo && <DemoStoreBanner storeName={business.name} />}
+
       {/* Floating Navigation Header (Appears only when scrolled past banner & profile) */}
       <StoreHeader
         business={business}
@@ -434,7 +442,7 @@ export const StorefrontHome: React.FC = () => {
       </footer>
 
       {/* Slide-out Cart Drawer for Guest Checkout */}
-      <CartDrawer storeSlug={store.slug} settings={settings} />
+      <CartDrawer storeSlug={store.slug} settings={settings} isDemo={isDemo} />
 
       {/* WhatsApp Modal */}
       <WhatsAppOrderModal
@@ -443,6 +451,7 @@ export const StorefrontHome: React.FC = () => {
         product={whatsAppProduct}
         business={business}
         storeSlug={store.slug}
+        isDemo={isDemo}
       />
 
       {/* Fullscreen Interactive Story Viewer */}
@@ -453,6 +462,7 @@ export const StorefrontHome: React.FC = () => {
         business={business}
         settings={settings}
         storeSlug={store.slug}
+        isDemo={isDemo}
         onWhatsAppOrder={p => setWhatsAppProduct(p)}
       />
     </div>

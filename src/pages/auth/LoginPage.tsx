@@ -1,17 +1,28 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Store, ArrowRight, ArrowLeft, Lock, Mail, ShieldCheck } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Store, ArrowRight, ArrowLeft, Lock, Mail, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('merchant@chibeauty.ng');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, switchDemoRole } = useAuth();
+  const [isVerifiedNotice, setIsVerifiedNotice] = useState(false);
+  const { login, user } = useAuth();
   const { success, error } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const hash = window.location.hash;
+
+    if (searchParams.get('verified') === 'true' || hash.includes('type=signup') || hash.includes('type=recovery')) {
+      setIsVerifiedNotice(true);
+    }
+  }, [location.search]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -37,26 +48,6 @@ export const LoginPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleQuickDemoMerchant = () => {
-    setEmail('merchant@chibeauty.ng');
-    setPassword('password123');
-    switchDemoRole('merchant');
-    login('merchant@chibeauty.ng', 'password123').then(() => {
-      success('Logged in as Demo Merchant (Chioma Okeke)');
-      navigate('/dashboard');
-    });
-  };
-
-  const handleQuickDemoAdmin = () => {
-    setEmail('admin@platform.ng');
-    setPassword('admin123');
-    switchDemoRole('admin');
-    login('admin@platform.ng', 'admin123').then(() => {
-      success('Logged in as Platform Admin');
-      navigate('/admin');
-    });
   };
 
   return (
@@ -94,26 +85,18 @@ export const LoginPage: React.FC = () => {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
         <div className="bg-white py-8 px-6 shadow-xl rounded-3xl sm:px-10 border border-slate-200/80">
-          {/* Quick 1-Click Demo Logins */}
-          <div className="mb-6 p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl">
-            <span className="text-xs font-bold text-blue-900 block mb-2">⚡ 1-Click Demo Access:</span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={handleQuickDemoMerchant}
-                className="py-1.5 px-2 bg-white text-xs font-semibold text-blue-800 rounded-xl border border-blue-200 hover:bg-blue-100/50 transition cursor-pointer text-center"
-              >
-                Demo Merchant
-              </button>
-              <button
-                type="button"
-                onClick={handleQuickDemoAdmin}
-                className="py-1.5 px-2 bg-white text-xs font-semibold text-purple-800 rounded-xl border border-purple-200 hover:bg-purple-100/50 transition cursor-pointer text-center"
-              >
-                Platform Admin
-              </button>
+          {/* Email Verified Banner */}
+          {isVerifiedNotice && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-emerald-900">Email Verified Successfully!</h4>
+                <p className="text-xs text-emerald-700 mt-0.5 leading-relaxed">
+                  Your email has been confirmed. Please sign in below with your credentials to access your dashboard.
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>

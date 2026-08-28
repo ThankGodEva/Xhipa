@@ -17,8 +17,12 @@ import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export const AdminAffiliatesPage: React.FC = () => {
+  const { user, isLoading: authLoading } = useAuth();
+  const navigate = useNavigate();
   const [affiliates, setAffiliates] = useState<any[]>([]);
   const [referrals, setReferrals] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<any[]>([]);
@@ -51,6 +55,10 @@ export const AdminAffiliatesPage: React.FC = () => {
       setCommissions(comms);
       setPayouts(pays);
     } catch (err: any) {
+      if (err?.message?.includes('session token') || err?.message?.includes('UNAUTHORIZED')) {
+        navigate('/login', { replace: true });
+        return;
+      }
       console.error('Failed to load admin affiliate data:', err);
       error(err.message || 'Could not load affiliate records');
     } finally {
@@ -59,8 +67,18 @@ export const AdminAffiliatesPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    if (!authLoading) {
+      if (!user) {
+        navigate('/login', { replace: true, state: { from: '/admin/affiliates' } });
+        return;
+      }
+      if (!user.is_platform_admin) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      loadAdminData();
+    }
+  }, [user, authLoading, navigate]);
 
   const handleToggleStatus = async (aff: any) => {
     const nextStatus = aff.status === 'active' ? 'suspended' : 'active';

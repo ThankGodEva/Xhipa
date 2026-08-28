@@ -1,5 +1,7 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 export interface R2Config {
   accountId: string;
@@ -19,6 +21,51 @@ export interface UploadResult {
   storage: 'cloudflare-r2' | 'fallback-cache';
   etag?: string;
   uploadedAt: string;
+}
+
+// Local filesystem directory for persistent caching
+const LOCAL_STORAGE_DIR = path.join(process.cwd(), 'data', 'uploads');
+
+function saveToDisk(key: string, buffer: Buffer): void {
+  try {
+    const fullPath = path.join(LOCAL_STORAGE_DIR, key);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, buffer);
+  } catch (err) {
+    console.warn('Failed to persist media to disk cache:', err);
+  }
+}
+
+function readFromDisk(key: string): { buffer: Buffer; mimetype: string } | null {
+  try {
+    const fullPath = path.join(LOCAL_STORAGE_DIR, key);
+    if (fs.existsSync(fullPath)) {
+      const buffer = fs.readFileSync(fullPath);
+      const ext = path.extname(key).replace('.', '').toLowerCase();
+      let mimetype = 'image/jpeg';
+      if (ext === 'png') mimetype = 'image/png';
+      else if (ext === 'webp') mimetype = 'image/webp';
+      else if (ext === 'svg') mimetype = 'image/svg+xml';
+      else if (ext === 'gif') mimetype = 'image/gif';
+      else if (ext === 'mp4') mimetype = 'video/mp4';
+      else if (ext === 'pdf') mimetype = 'application/pdf';
+      return { buffer, mimetype };
+    }
+  } catch (err) {
+    console.warn('Failed to read media from disk cache:', err);
+  }
+  return null;
+}
+
+function deleteFromDisk(key: string): void {
+  try {
+    const fullPath = path.join(LOCAL_STORAGE_DIR, key);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // In-memory fallback cache for files if R2 credentials are not yet configured
@@ -136,12 +183,25 @@ export async function uploadMediaToR2({
 
       // Determine public URL
       let publicUrl = '';
-      if (config.publicUrl) {
-        publicUrl = `${config.publicUrl}/${key}`;
+      let cleanPublicBase = (config.publicUrl || '').trim().replace(/\/$/, '');
+      if (cleanPublicBase && !cleanPublicBase.startsWith('http://') && !cleanPublicBase.startsWith('https://')) {
+        cleanPublicBase = `https://${cleanPublicBase}`;
+      }
+
+      if (
+        cleanPublicBase &&
+        !cleanPublicBase.includes('pub-xxxx') &&
+        !cleanPublicBase.includes('example') &&
+        !cleanPublicBase.includes('media.xhipa.com')
+      ) {
+        publicUrl = `${cleanPublicBase}/${key}`;
       } else {
-        // Fallback to proxy route
+        // Fallback to robust server proxy route
         publicUrl = `/api/media/${key}`;
       }
+
+      // Persist locally as well for fallback reliability
+      saveToDisk(key, buffer);
 
       return {
         url: publicUrl,
@@ -164,6 +224,8 @@ export async function uploadMediaToR2({
     mimetype,
     originalname: cleanFilename
   });
+
+  saveToDisk(key, buffer);
 
   return {
     url: `/api/media/${key}`,
@@ -246,13 +308,29 @@ export async function getMediaFromR2(key: string): Promise<{
     }
   }
 
-  // Check fallback storage
+  // Check in-memory fallback storage
   const cached = fallbackStorage.get(key);
   if (cached) {
     return {
       buffer: cached.buffer,
       mimetype: cached.mimetype,
       size: cached.buffer.length,
+      cacheControl: 'public, max-age=86400'
+    };
+  }
+
+  // Check persistent disk cache
+  const diskCached = readFromDisk(key);
+  if (diskCached) {
+    fallbackStorage.set(key, {
+      buffer: diskCached.buffer,
+      mimetype: diskCached.mimetype,
+      originalname: key
+    });
+    return {
+      buffer: diskCached.buffer,
+      mimetype: diskCached.mimetype,
+      size: diskCached.buffer.length,
       cacheControl: 'public, max-age=86400'
     };
   }
@@ -268,6 +346,7 @@ export async function deleteMediaFromR2(key: string): Promise<boolean> {
   const client = getR2Client();
 
   fallbackStorage.delete(key);
+  deleteFromDisk(key);
 
   if (client && config.isConfigured) {
     try {
@@ -285,3 +364,46 @@ export async function deleteMediaFromR2(key: string): Promise<boolean> {
 
   return true;
 }
+
+/**
+ * Normalizes any stored media URL (resolving custom domains, bare keys, and relative proxy routes)
+ */
+export function normalizeMediaUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.startsWith('data:')) return trimmed;
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (trimmed.includes('media.xhipa.com') || trimmed.includes('pub-xxxx') || trimmed.includes('your-bucket')) {
+      const match = trimmed.match(/(branding|products|uploads|general)\/.+/);
+      if (match) return `/api/media/${match[0]}`;
+    }
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/')) return trimmed;
+
+  if (trimmed.startsWith('media.xhipa.com/')) {
+    const key = trimmed.replace(/^media\.xhipa\.com\//, '');
+    return `/api/media/${key}`;
+  }
+
+  if (trimmed.includes('.r2.dev/')) {
+    const parts = trimmed.split('.r2.dev/');
+    if (parts[1]) return `/api/media/${parts[1]}`;
+  }
+
+  if (
+    trimmed.startsWith('branding/') ||
+    trimmed.startsWith('products/') ||
+    trimmed.startsWith('uploads/') ||
+    trimmed.startsWith('general/')
+  ) {
+    return `/api/media/${trimmed}`;
+  }
+
+  return trimmed;
+}
+

@@ -46,8 +46,8 @@ export const RegisterPage: React.FC = () => {
     setIsLoading(true);
     try {
       await register(fullName, email, password);
-      success('Account created! Please verify your email to access your dashboard.');
-      navigate('/verify-email');
+      success('Account created! Let\'s set up your store.');
+      navigate('/onboarding');
     } catch (err: any) {
       error(err.message || 'Registration failed');
     } finally {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ChevronLeft, ChevronRight, MessageCircle, ShoppingCart, Heart, Volume2, VolumeX, Sparkles } from 'lucide-react';
 import { Business, StoreSettings, Product } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { formatCurrency, resolveMediaUrl } from '../../lib/utils';
 import { useCart } from '../../context/CartContext';
 
 export interface StorySlide {
@@ -29,6 +29,7 @@ interface StoryViewerModalProps {
   business: Business;
   settings: StoreSettings;
   storeSlug: string;
+  isDemo?: boolean;
   onWhatsAppOrder?: (product: Product) => void;
 }
 
@@ -39,6 +40,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
   business,
   settings,
   storeSlug,
+  isDemo = false,
   onWhatsAppOrder
 }) => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
@@ -153,7 +155,7 @@ export const StoryViewerModal: React.FC<StoryViewerModalProps> = ({
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-full p-0.5 bg-gradient-to-tr from-amber-400 via-rose-500 to-emerald-500">
                 <img
-                  src={business.logo_url || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=100'}
+                  src={resolveMediaUrl(business.logo_url) || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=100'}
                   alt={business.name}
                   className="w-full h-full rounded-full object-cover border border-black/40"
                 />

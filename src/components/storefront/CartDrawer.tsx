@@ -1,24 +1,33 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X, Trash2, Plus, Minus, ShoppingCart, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { X, Trash2, Plus, Minus, ShoppingCart, ArrowRight, ShieldCheck, Lock, Sparkles } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { formatCurrency } from '../../lib/utils';
 import { Button } from '../common/Button';
 import { StoreSettings } from '../../types';
+import { isDemoStoreSlug } from '../../lib/demoStores';
+import { useToast } from '../../context/ToastContext';
 
 export interface CartDrawerProps {
   storeSlug: string;
   settings: StoreSettings;
+  isDemo?: boolean;
 }
 
-export const CartDrawer: React.FC<CartDrawerProps> = ({ storeSlug, settings }) => {
+export const CartDrawer: React.FC<CartDrawerProps> = ({ storeSlug, settings, isDemo }) => {
   const { items, removeItem, updateQuantity, isCartOpen, setIsCartOpen, subtotalInKobo } = useCart();
+  const { info } = useToast();
   const navigate = useNavigate();
   const themeColor = settings.primary_color || '#10B981';
+  const isDemoMode = isDemo ?? isDemoStoreSlug(storeSlug);
 
   if (!isCartOpen) return null;
 
   const handleCheckout = () => {
+    if (isDemoMode) {
+      info('Sample Store Mode: Checkout and live payments are unclickable for this demo. Create your own free store to accept real orders!');
+      return;
+    }
     setIsCartOpen(false);
     navigate(`/${storeSlug}/checkout`);
   };
@@ -55,7 +64,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ storeSlug, settings }) =
                 </div>
                 <h3 className="text-sm font-semibold text-slate-900 mb-1">Your cart is empty</h3>
                 <p className="text-xs text-slate-500 max-w-xs mb-4">
-                  Browse the products and add items to your cart to check out.
+                  Browse the products and add items to your cart to test the live cart experience.
                 </p>
                 <Button variant="outline" size="sm" onClick={() => setIsCartOpen(false)}>
                   Continue Shopping
@@ -135,21 +144,59 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({ storeSlug, settings }) =
                 <span className="text-base font-extrabold text-slate-900">{formatCurrency(subtotalInKobo)}</span>
               </div>
 
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full"
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-                onClick={handleCheckout}
-                style={{ backgroundColor: themeColor }}
-              >
-                Proceed to Checkout
-              </Button>
+              {/* Demo Mode Notice & Disabled Checkout Button */}
+              {isDemoMode ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200 text-amber-900 text-2xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold">
+                      <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                      <span>Sample Store (Checkout Disabled)</span>
+                    </div>
+                    <p className="text-amber-800 leading-snug">
+                      This is an interactive demo for perusing features. Live checkout and payment processing are disabled for this sample store.
+                    </p>
+                  </div>
 
-              <div className="flex items-center justify-center gap-1.5 text-2xs text-slate-400">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Guest checkout • Secure payment via Paystack</span>
-              </div>
+                  <button
+                    type="button"
+                    disabled={true}
+                    aria-disabled="true"
+                    className="w-full py-3 px-4 rounded-xl text-xs font-bold text-slate-400 bg-slate-200 border border-slate-300 flex items-center justify-center gap-2 cursor-not-allowed opacity-75 shadow-none select-none"
+                    title="Checkout is unclickable for this demo sample store"
+                    onClick={handleCheckout}
+                  >
+                    <Lock className="w-4 h-4 text-slate-400" />
+                    <span>Checkout Disabled (Sample Only)</span>
+                  </button>
+
+                  <Link
+                    to="/register"
+                    onClick={() => setIsCartOpen(false)}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-1.5 shadow-sm transition"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Create Your Own Store Free</span>
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    className="w-full"
+                    rightIcon={<ArrowRight className="w-4 h-4" />}
+                    onClick={handleCheckout}
+                    style={{ backgroundColor: themeColor }}
+                  >
+                    Proceed to Checkout
+                  </Button>
+
+                  <div className="flex items-center justify-center gap-1.5 text-2xs text-slate-400">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Guest checkout • Secure payment via Paystack</span>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

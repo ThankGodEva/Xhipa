@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckCircle2,
   MapPin,
@@ -14,6 +14,7 @@ import {
 import { Business, StoreSettings } from '../../types';
 import { ShareButton } from '../common/ShareButton';
 import { useCart } from '../../context/CartContext';
+import { resolveMediaUrl } from '../../lib/utils';
 
 interface SocialStoreHeroProps {
   business: Business;
@@ -32,19 +33,35 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
   const themeColor = settings.primary_color || '#10B981';
   const storeUrl = `${window.location.origin}/${storeSlug}`;
   const instagramHandle = `@${storeSlug.replace(/-/g, '_')}`;
+  const [logoError, setLogoError] = useState(false);
+  const [bannerError, setBannerError] = useState(false);
+  const resolvedLogo = resolveMediaUrl(business.logo_url);
+  const resolvedBanner = resolveMediaUrl(business.banner_url || settings.banner_url);
 
-  // High-aesthetic cover banner image
+  // Reset error states when branding media changes
+  useEffect(() => {
+    setLogoError(false);
+  }, [business.logo_url]);
+
+  useEffect(() => {
+    setBannerError(false);
+  }, [business.banner_url, settings.banner_url]);
+
+  // High-aesthetic cover banner image fallback
   const defaultBannerImage =
     'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=1400&auto=format&fit=crop&q=80';
+
+  const bannerSource = !bannerError && resolvedBanner ? resolvedBanner : defaultBannerImage;
 
   return (
     <div className="bg-white border-b border-slate-100">
       {/* Top Visual Store Banner */}
       <div className="relative w-full h-44 sm:h-56 md:h-64 bg-slate-900 overflow-hidden">
         <img
-          src={defaultBannerImage}
+          src={bannerSource}
           alt={`${business.name} Banner`}
-          className="w-full h-full object-cover opacity-60 filter brightness-95"
+          onError={() => setBannerError(true)}
+          className="w-full h-full object-cover opacity-75 filter brightness-95"
         />
         {/* Soft gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20 pointer-events-none" />
@@ -75,10 +92,11 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
               title="Tap to view store story"
             >
               <div className="p-0.5 bg-white rounded-full">
-                {business.logo_url ? (
+                {resolvedLogo && !logoError ? (
                   <img
-                    src={business.logo_url}
+                    src={resolvedLogo}
                     alt={business.name}
+                    onError={() => setLogoError(true)}
                     className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full object-cover group-hover:opacity-95 transition"
                   />
                 ) : (

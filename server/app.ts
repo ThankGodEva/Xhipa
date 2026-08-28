@@ -9,6 +9,7 @@ import merchantRoutes from './routes/merchant.routes';
 import adminRoutes from './routes/admin.routes';
 import affiliateRoutes from './routes/affiliate.routes';
 import mediaRoutes from './routes/media.routes';
+import authRoutes from './routes/auth.routes';
 
 export function createApp() {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp() {
   });
 
   // API Routes
+  app.use('/api/auth', authRoutes);
   app.use('/api/media', mediaRoutes);
   app.use('/api/storefront', storefrontRoutes);
   app.use('/api/orders', orderRoutes);

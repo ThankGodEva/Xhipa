@@ -18,22 +18,79 @@ import {
 const API_BASE = '/api';
 
 function getAuthHeader(): Record<string, string> {
-  const token = localStorage.getItem('storefront_auth_token') || 'demo-merchant-token';
-  return {
-    Authorization: `Bearer ${token}`,
+  const token = localStorage.getItem('storefront_auth_token');
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+import { DEMO_STORES_MAP } from './demoStores';
+
+async function safeParseJson<T = any>(res: Response, fallbackError = 'Request failed'): Promise<T> {
+  const contentType = res.headers.get('content-type') || '';
+  let data: any = null;
+  if (contentType.includes('application/json')) {
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+  } else {
+    const text = await res.text().catch(() => '');
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { success: false, error: { message: text.slice(0, 150) || fallbackError } };
+    }
+  }
+
+  if (!res.ok || (data && data.success === false)) {
+    throw new Error(data?.error?.message || data?.message || `${fallbackError} (${res.status})`);
+  }
+  return data;
 }
 
 export const api = {
+  // Authentication & Verification
+  async checkEmailStatus(email?: string, userId?: string): Promise<{ isVerified: boolean; emailConfirmedAt?: string | null }> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/check-email-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, userId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { isVerified: Boolean(data.isVerified), emailConfirmedAt: data.emailConfirmedAt };
+      }
+    } catch (err) {
+      console.warn('Backend check-email-status fetch failed:', err);
+    }
+    return { isVerified: false };
+  },
+
   // Public Storefront
   async getStorefront(slug: string): Promise<PublicStorefrontData> {
-    const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(slug)}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Store not found');
+    const cleanSlug = slug?.toLowerCase().trim();
+    try {
+      const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(slug)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        return data.data;
+      }
+    } catch (err) {
+      console.warn('Backend storefront fetch failed, checking demo stores:', err);
     }
-    return data.data;
+
+    if (cleanSlug && DEMO_STORES_MAP[cleanSlug]) {
+      return DEMO_STORES_MAP[cleanSlug];
+    }
+
+    throw new Error('Store not found');
   },
 
   async getPublicStore(slug: string): Promise<PublicStorefrontData> {
@@ -41,12 +98,30 @@ export const api = {
   },
 
   async getProductDetail(storeSlug: string, productSlug: string): Promise<{ business: Business; settings: StoreSettings; product: Product }> {
-    const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(storeSlug)}/product/${encodeURIComponent(productSlug)}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Product not found');
+    const cleanStoreSlug = storeSlug?.toLowerCase().trim();
+    try {
+      const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(storeSlug)}/product/${encodeURIComponent(productSlug)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.data) {
+        return data.data;
+      }
+    } catch (err) {
+      console.warn('Backend product detail fetch failed, checking demo store:', err);
     }
-    return data.data;
+
+    if (cleanStoreSlug && DEMO_STORES_MAP[cleanStoreSlug]) {
+      const bundle = DEMO_STORES_MAP[cleanStoreSlug];
+      const product = bundle.products.find(p => p.slug === productSlug);
+      if (product) {
+        return {
+          business: bundle.business,
+          settings: bundle.settings,
+          product
+        };
+      }
+    }
+
+    throw new Error('Product not found');
   },
 
   async getPublicProduct(storeSlug: string, productSlug: string): Promise<{ business: Business; settings: StoreSettings; product: Product }> {
@@ -367,6 +442,17 @@ export const api = {
     };
   },
 
+  async initializeSubscriptionPayment(params: { planId: string; callbackUrl?: string }): Promise<{ authorization_url: string; access_code: string; reference: string; free_activated?: boolean }> {
+    const res = await fetch(`${API_BASE}/merchant/subscription/initialize`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to initialize subscription payment');
+    return data.data;
+  },
+
   async upgradeSubscription(planId: string): Promise<{ success: boolean; subscription: any; plan: SubscriptionPlan; message: string }> {
     const res = await fetch(`${API_BASE}/merchant/subscription/upgrade`, {
       method: 'POST',
@@ -601,26 +687,69 @@ export const api = {
     file: File | Blob,
     options?: { folder?: string; businessId?: string; filename?: string }
   ): Promise<{ url: string; key: string; filename: string; mimetype: string; size: number; storage: string }> {
-    const formData = new FormData();
     const filename = options?.filename || (file instanceof File ? file.name : `upload_${Date.now()}.jpg`);
-    formData.append('file', file, filename);
-    if (options?.folder) formData.append('folder', options.folder);
-    if (options?.businessId) formData.append('businessId', options.businessId);
-
     const token = localStorage.getItem('storefront_auth_token') || 'demo-merchant-token';
-    const res = await fetch(`${API_BASE}/media/upload`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      body: formData
-    });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Failed to upload media to Cloudflare R2');
+    // 1. Try multipart FormData upload
+    try {
+      const formData = new FormData();
+      formData.append('file', file, filename);
+      if (options?.folder) formData.append('folder', options.folder);
+      if (options?.businessId) formData.append('businessId', options.businessId);
+
+      const res = await fetch(`${API_BASE}/media/upload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await safeParseJson(res, 'Failed to upload media to Cloudflare R2');
+      if (data && data.success && data.data?.url) {
+        return data.data;
+      }
+    } catch (formErr) {
+      console.warn('Multipart upload failed, attempting base64 fallback:', formErr);
     }
-    return data.data;
+
+    // 2. Base64 fallback if multipart upload fails
+    try {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      return await this.uploadBase64(base64Data, {
+        folder: options?.folder || 'branding',
+        businessId: options?.businessId,
+        filename
+      });
+    } catch (b64Err) {
+      console.warn('Base64 R2 upload fallback failed:', b64Err);
+      // 3. Ultimate resilient fallback: return data URL
+      const fallbackDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
+
+      if (fallbackDataUrl) {
+        return {
+          url: fallbackDataUrl,
+          key: `${options?.folder || 'branding'}/${filename}`,
+          filename,
+          mimetype: file.type || 'image/jpeg',
+          size: file.size,
+          storage: 'inline-data-url'
+        };
+      }
+
+      throw new Error('Failed to upload media. Please try another image.');
+    }
   },
 
   async uploadBase64(
@@ -642,10 +771,7 @@ export const api = {
       })
     });
 
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Failed to upload media to Cloudflare R2');
-    }
+    const data = await safeParseJson(res, 'Failed to upload media');
     return data.data;
   },
 

@@ -21,13 +21,6 @@ export const OnboardingWizard: React.FC = () => {
   const { success, error } = useToast();
   const navigate = useNavigate();
 
-  // If user is not email verified, redirect to verify-email
-  useEffect(() => {
-    if (user && !user.is_email_verified) {
-      navigate('/verify-email');
-    }
-  }, [user, navigate]);
-
   const handleTopBack = () => {
     if (step === 2) {
       setStep(1);
@@ -35,7 +28,7 @@ export const OnboardingWizard: React.FC = () => {
       if (window.history.length > 1) {
         navigate(-1);
       } else {
-        navigate('/dashboard');
+        navigate('/register');
       }
     }
   };
@@ -89,8 +82,13 @@ export const OnboardingWizard: React.FC = () => {
       // Clear attribution token now that relationship is authoritatively stored
       clearAttributedReferralCode();
 
-      success('🎉 Your store is now live with the Free plan!');
-      navigate('/dashboard/products');
+      if (user?.is_email_verified) {
+        success('🎉 Your store is live with the Free plan!');
+        navigate('/dashboard/products');
+      } else {
+        success('🎉 Store details saved! Please verify your email to activate your account.');
+        navigate('/verify-email');
+      }
     } catch (err: any) {
       error(err.message || 'Setup error');
     } finally {

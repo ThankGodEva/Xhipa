@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { orderService } from '../services/order.service';
-import { checkoutRateLimiter } from '../middleware/rateLimiter';
-import { db } from '../data/store';
+import { checkoutRateLimiter, orderTrackingRateLimiter } from '../middleware/rateLimiter';
+import { orderRepository } from '../repositories/order.repository';
+import { merchantRepository } from '../repositories/merchant.repository';
 
 const router = Router();
 
@@ -44,35 +45,44 @@ router.post('/checkout', checkoutRateLimiter, async (req: Request, res: Response
  * GET /api/orders/track/:orderNumber
  * Public guest order tracking by order number
  */
-router.get('/track/:orderNumber', (req: Request, res: Response) => {
-  const { orderNumber } = req.params;
-  const order = Array.from(db.orders.values()).find(o => o.order_number === orderNumber);
+router.get('/track/:orderNumber', orderTrackingRateLimiter, async (req: Request, res: Response) => {
+  try {
+    const { orderNumber } = req.params;
+    const order = await orderRepository.getOrderByNumber(orderNumber);
 
-  if (!order) {
-    return res.status(404).json({
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        error: { code: 'ORDER_NOT_FOUND', message: 'Order not found.' }
+      });
+    }
+
+    const [business, settings] = await Promise.all([
+      merchantRepository.getBusinessById(order.business_id),
+      merchantRepository.getStoreSettings(order.business_id)
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        order,
+        business: business ? {
+          name: business.name,
+          phone: business.phone,
+          whatsapp_number: business.whatsapp_number,
+          currency: business.currency
+        } : null,
+        settings: settings ? {
+          primary_color: settings.primary_color
+        } : null
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({
       success: false,
-      error: { code: 'ORDER_NOT_FOUND', message: 'Order not found.' }
+      error: { code: 'INTERNAL_ERROR', message: error.message || 'Failed to track order.' }
     });
   }
-
-  const business = db.businesses.get(order.business_id);
-  const settings = business ? db.storeSettings.get(business.id) : null;
-
-  return res.json({
-    success: true,
-    data: {
-      order,
-      business: business ? {
-        name: business.name,
-        phone: business.phone,
-        whatsapp_number: business.whatsapp_number,
-        currency: business.currency
-      } : null,
-      settings: settings ? {
-        primary_color: settings.primary_color
-      } : null
-    }
-  });
 });
 
 export default router;

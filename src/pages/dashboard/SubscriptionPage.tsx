@@ -27,7 +27,29 @@ export const SubscriptionPage: React.FC = () => {
   const { success, error } = useToast();
 
   useEffect(() => {
-    loadSubscriptionData();
+    const queryParams = new URLSearchParams(window.location.search);
+    const reference = queryParams.get('reference') || queryParams.get('trxref');
+    if (reference) {
+      // Clean query params from URL bar
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setIsLoading(true);
+      api.verifyPayment(reference)
+        .then((res: any) => {
+          if (res?.success) {
+            success('🎉 Subscription successfully upgraded and activated!');
+          } else {
+            error(res?.message || 'Subscription payment verification failed.');
+          }
+          loadSubscriptionData();
+        })
+        .catch((err: any) => {
+          console.error('Subscription verification error:', err);
+          error(err.message || 'Failed to verify subscription payment.');
+          loadSubscriptionData();
+        });
+    } else {
+      loadSubscriptionData();
+    }
   }, []);
 
   const loadSubscriptionData = async () => {
@@ -51,14 +73,28 @@ export const SubscriptionPage: React.FC = () => {
     }
   };
 
-  const handleUpgrade = async (planId: string) => {
-    setUpgradingPlanId(planId);
+  const handleUpgrade = async (plan: SubscriptionPlan) => {
+    setUpgradingPlanId(plan.id);
     try {
-      const res = await api.upgradeSubscription(planId);
-      success(res.message || 'Subscription updated successfully!');
-      await loadSubscriptionData();
+      if (plan.price_monthly === 0 || plan.id === 'free') {
+        const res = await api.upgradeSubscription(plan.id);
+        success(res.message || 'Free tier activated successfully!');
+        await loadSubscriptionData();
+      } else {
+        const callbackUrl = `${window.location.origin}/dashboard/subscription`;
+        const res = await api.initializeSubscriptionPayment({
+          planId: plan.id,
+          callbackUrl
+        });
+
+        if (res.authorization_url) {
+          window.location.href = res.authorization_url;
+        } else {
+          throw new Error('No authorization URL received from payment processor.');
+        }
+      }
     } catch (err: any) {
-      error(err.message || 'Failed to update subscription');
+      error(err.message || 'Failed to process subscription upgrade');
     } finally {
       setUpgradingPlanId(null);
     }
@@ -203,7 +239,7 @@ export const SubscriptionPage: React.FC = () => {
                   className="w-full"
                   disabled={isCurrent}
                   isLoading={upgradingPlanId === plan.id}
-                  onClick={() => handleUpgrade(plan.id)}
+                  onClick={() => handleUpgrade(plan)}
                 >
                   {isCurrent ? 'Current Plan' : `Switch to ${plan.name}`}
                 </Button>

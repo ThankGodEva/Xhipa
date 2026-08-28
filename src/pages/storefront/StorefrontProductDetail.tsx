@@ -24,6 +24,8 @@ import { Button } from '../../components/common/Button';
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { CartDrawer } from '../../components/storefront/CartDrawer';
 import { WhatsAppOrderModal } from '../../components/storefront/WhatsAppOrderModal';
+import { DemoStoreBanner } from '../../components/storefront/DemoStoreBanner';
+import { isDemoStoreSlug } from '../../lib/demoStores';
 import { TikTokPlayer } from '../../components/common/TikTokPlayer';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
@@ -40,6 +42,8 @@ export const StorefrontProductDetail: React.FC = () => {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(() => Math.floor(Math.random() * 50) + 24);
+
+  const isDemo = isDemoStoreSlug(storeSlug);
 
   const { addItem } = useCart();
   const { success } = useToast();
@@ -125,6 +129,9 @@ export const StorefrontProductDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col">
+      {/* Sample Demo Store Banner */}
+      {isDemo && <DemoStoreBanner storeName={business.name} />}
+
       <StoreHeader business={business} settings={settings} />
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
@@ -390,7 +397,7 @@ export const StorefrontProductDetail: React.FC = () => {
         </div>
       </main>
 
-      <CartDrawer storeSlug={storeSlug!} settings={settings} />
+      <CartDrawer storeSlug={storeSlug!} settings={settings} isDemo={isDemo} />
 
       <WhatsAppOrderModal
         isOpen={showWhatsAppModal}
@@ -398,6 +405,7 @@ export const StorefrontProductDetail: React.FC = () => {
         product={product}
         business={business}
         storeSlug={storeSlug!}
+        isDemo={isDemo}
       />
     </div>
   );

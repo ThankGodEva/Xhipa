@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, MessageCircle, Phone, Sparkles, CheckCircle2 } from 'lucide-react';
 import { Business, StoreSettings } from '../../types';
 import { useCart } from '../../context/CartContext';
+import { resolveMediaUrl } from '../../lib/utils';
 
 export interface StoreHeaderProps {
   business: Business;
@@ -18,6 +19,13 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
 }) => {
   const { totalItems, setIsCartOpen } = useCart();
   const themeColor = settings.primary_color || '#10B981';
+  const [imgError, setImgError] = useState(false);
+  const resolvedLogo = resolveMediaUrl(business.logo_url);
+
+  // Reset image error state when business logo changes
+  useEffect(() => {
+    setImgError(false);
+  }, [business.logo_url]);
 
   return (
     <header
@@ -34,10 +42,11 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand & Logo */}
         <div className="flex items-center gap-3">
-          {settings.show_logo && business.logo_url ? (
+          {settings.show_logo && resolvedLogo && !imgError ? (
             <img
-              src={business.logo_url}
+              src={resolvedLogo}
               alt={business.name}
+              onError={() => setImgError(true)}
               className="w-10 h-10 rounded-full object-cover border-2 border-white/50 shadow-xs"
             />
           ) : (

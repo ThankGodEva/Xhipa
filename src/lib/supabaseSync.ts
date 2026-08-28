@@ -1,5 +1,10 @@
 import { supabase, isSupabaseConfigured } from './supabase';
 
+const isUUID = (val?: string | null): boolean => {
+  if (!val || typeof val !== 'string') return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+};
+
 export interface OnboardingSyncPayload {
   userId: string;
   fullName: string;
@@ -20,7 +25,7 @@ export interface OnboardingSyncPayload {
  * and automatic Free Plan assignment to Supabase when configured.
  */
 export async function syncFullMerchantDataToSupabase(payload: OnboardingSyncPayload): Promise<void> {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured || !isUUID(payload.userId)) return;
 
   try {
     const now = new Date().toISOString();

@@ -7,7 +7,9 @@ import {
   deleteMediaFromR2,
   getR2Config
 } from '../services/r2Storage.service';
-import { db } from '../data/store';
+import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
+import { mediaUploadRateLimiter } from '../middleware/rateLimiter';
+import { merchantRepository } from '../repositories/merchant.repository';
 
 const router = Router();
 
@@ -52,12 +54,14 @@ router.get('/status', (_req: Request, res: Response) => {
 
 /**
  * POST /api/media/upload
- * Single file upload or base64 upload to Cloudflare R2
+ * Authenticated single file upload or base64 upload to Cloudflare R2
+ * Enforces businessId derived from authenticated user's tenancy.
  */
-router.post('/upload', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/upload', requireAuth, mediaUploadRateLimiter, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
   try {
+    const membership = await merchantRepository.getMembershipByUserId(req.user!.id);
+    const businessId = membership ? membership.business_id : (req.user!.is_platform_admin ? (req.body.businessId || 'platform') : 'general');
     const folder = (req.body.folder || 'products').toString();
-    const businessId = (req.body.businessId || 'general').toString();
 
     // 1. Handle multipart file upload
     if (req.file) {
@@ -110,7 +114,7 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
  * POST /api/media/upload-multiple
  * Multiple files upload to Cloudflare R2
  */
-router.post('/upload-multiple', upload.array('files', 10), async (req: Request, res: Response) => {
+router.post('/upload-multiple', requireAuth, mediaUploadRateLimiter, upload.array('files', 10), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const files = req.files as Express.Multer.File[];
     if (!files || files.length === 0) {
@@ -120,8 +124,9 @@ router.post('/upload-multiple', upload.array('files', 10), async (req: Request, 
       });
     }
 
+    const membership = await merchantRepository.getMembershipByUserId(req.user!.id);
+    const businessId = membership ? membership.business_id : (req.user!.is_platform_admin ? (req.body.businessId || 'platform') : 'general');
     const folder = (req.body.folder || 'products').toString();
-    const businessId = (req.body.businessId || 'general').toString();
 
     const uploadPromises = files.map(file =>
       uploadMediaToR2({
@@ -149,16 +154,74 @@ router.post('/upload-multiple', upload.array('files', 10), async (req: Request, 
 });
 
 /**
- * GET /api/media/:folder/:businessId/:filename
- * Proxy / serve media directly from Cloudflare R2 if accessed locally
+ * DELETE /api/media/*
+ * Delete media from Cloudflare R2 with tenant authorization check
+ */
+router.delete('/*', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rawKey = req.params[0] || '';
+    if (!rawKey || rawKey.includes('//') || rawKey.includes('..') || rawKey.includes('\\')) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid or missing media key.' } });
+    }
+
+    let key = rawKey.replace(/^\/+/, '');
+    try {
+      key = decodeURIComponent(key);
+    } catch {
+      // keep key
+    }
+
+    if (!key || key.includes('..') || key.includes('\\') || key.includes('//')) {
+      return res.status(400).json({ success: false, error: { message: 'Invalid or missing media key.' } });
+    }
+
+    // Tenant isolation: if not admin, verify key strictly belongs to user's business
+    if (!req.user!.is_platform_admin) {
+      const membership = await merchantRepository.getMembershipByUserId(req.user!.id);
+      if (!membership) {
+        return res.status(403).json({
+          success: false,
+          error: { message: 'You are not authorized to delete this media file.' }
+        });
+      }
+      const keyParts = key.split('/');
+      // key format: folder/businessId/filename
+      if (keyParts.length < 3 || keyParts[1] !== membership.business_id) {
+        return res.status(403).json({
+          success: false,
+          error: { message: 'You are not authorized to delete this media file.' }
+        });
+      }
+    }
+
+    const deleted = await deleteMediaFromR2(key);
+    return res.json({ success: true, deleted });
+  } catch (err: any) {
+    console.error('Error deleting media from Cloudflare R2:', err);
+    return res.status(500).json({ success: false, error: { message: 'Failed to delete media.' } });
+  }
+});
+
+/**
+ * GET /api/media/*
+ * Proxy / serve media directly from Cloudflare R2
  */
 router.get('/*', async (req: Request, res: Response) => {
   try {
     const rawKey = req.params[0] || '';
-    const key = rawKey.replace(/^\/+/, '');
+    if (!rawKey || rawKey.includes('//') || rawKey.includes('..') || rawKey.includes('\\')) {
+      return res.status(404).json({ success: false, error: { message: 'File not found or invalid key.' } });
+    }
 
-    if (!key || key === 'status') {
-      return res.status(404).json({ success: false, error: { message: 'File key required' } });
+    let key = rawKey.replace(/^\/+/, '');
+    try {
+      key = decodeURIComponent(key);
+    } catch {
+      // keep key
+    }
+
+    if (!key || key === 'status' || key.includes('..') || key.includes('\\') || key.includes('//')) {
+      return res.status(404).json({ success: false, error: { message: 'File not found or invalid key.' } });
     }
 
     const media = await getMediaFromR2(key);
@@ -175,7 +238,6 @@ router.get('/*', async (req: Request, res: Response) => {
     }
 
     if (media.stream) {
-      // Pipe stream from S3/R2
       return (media.stream as any).pipe(res);
     } else if (media.buffer) {
       return res.send(media.buffer);
@@ -188,27 +250,6 @@ router.get('/*', async (req: Request, res: Response) => {
       success: false,
       error: { message: 'Failed to retrieve media from storage.' }
     });
-  }
-});
-
-/**
- * DELETE /api/media/*
- * Delete media from Cloudflare R2
- */
-router.delete('/*', async (req: Request, res: Response) => {
-  try {
-    const rawKey = req.params[0] || '';
-    const key = rawKey.replace(/^\/+/, '');
-
-    if (!key) {
-      return res.status(400).json({ success: false, error: { message: 'Key is required' } });
-    }
-
-    const deleted = await deleteMediaFromR2(key);
-    return res.json({ success: true, deleted });
-  } catch (err: any) {
-    console.error('Error deleting media from Cloudflare R2:', err);
-    return res.status(500).json({ success: false, error: { message: 'Failed to delete media.' } });
   }
 });
 

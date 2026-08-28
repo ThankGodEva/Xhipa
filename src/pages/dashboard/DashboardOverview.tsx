@@ -23,8 +23,10 @@ import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 import { ShareButton } from '../../components/common/ShareButton';
 import { QRModal } from '../../components/common/QRModal';
+import { useAuth } from '../../context/AuthContext';
 
 export const DashboardOverview: React.FC = () => {
+  const { user } = useAuth();
   const [metrics, setMetrics] = useState<any>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [storeData, setStoreData] = useState<any>(null);
@@ -34,8 +36,10 @@ export const DashboardOverview: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user) {
+      loadData();
+    }
+  }, [user]);
 
   const loadData = async () => {
     setLoading(true);
@@ -48,16 +52,59 @@ export const DashboardOverview: React.FC = () => {
       setRecentOrders(bizRes.recentOrders || []);
       setStoreData({ business: bizRes.business, store: bizRes.store });
       setSubscription(subRes);
-    } catch (e) {
+    } catch (e: any) {
+      if (e?.message?.includes('session token') || e?.message?.includes('UNAUTHORIZED')) {
+        navigate('/login', { replace: true });
+        return;
+      }
       console.error('Failed to load dashboard overview:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  const storeSlug = storeData?.store?.slug || 'chi-beauty';
-  const storeName = storeData?.business?.name || 'Chi Beauty & Glow';
-  const storeUrl = `${window.location.origin}/${storeSlug}`;
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        {/* Top Banner Skeleton */}
+        <div className="bg-gradient-to-r from-blue-600/80 to-indigo-700/80 rounded-3xl p-6 sm:p-8 h-44 flex flex-col justify-center space-y-3">
+          <div className="h-4 bg-white/20 rounded w-24"></div>
+          <div className="h-8 bg-white/30 rounded-xl w-64"></div>
+          <div className="h-4 bg-white/20 rounded w-48"></div>
+        </div>
+
+        {/* Metrics Row Skeleton */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+              <div className="flex justify-between items-center">
+                <div className="h-3 bg-slate-200 rounded w-16"></div>
+                <div className="w-8 h-8 bg-slate-100 rounded-xl"></div>
+              </div>
+              <div className="h-7 bg-slate-200 rounded w-28"></div>
+              <div className="h-3 bg-slate-100 rounded w-20"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Recent Orders Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-2xs space-y-4">
+            <div className="h-5 bg-slate-200 rounded w-40"></div>
+            <div className="h-32 bg-slate-50 rounded-2xl"></div>
+          </div>
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-2xs space-y-4">
+            <div className="h-5 bg-slate-200 rounded w-32"></div>
+            <div className="h-32 bg-slate-50 rounded-2xl"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const storeSlug = storeData?.store?.slug || '';
+  const storeName = storeData?.business?.name || (user?.full_name ? `${user.full_name}'s Store` : 'My Store');
+  const storeUrl = storeSlug ? `${window.location.origin}/${storeSlug}` : `${window.location.origin}`;
 
   const currentProducts = metrics?.total_products || 0;
   const maxProducts = subscription?.entitlements?.max_products ?? 10;

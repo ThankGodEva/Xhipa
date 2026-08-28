@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Business, Product, StoreSettings } from '../../types';
-import { toKobo, toNaira } from '../../lib/utils';
+import { toKobo, toNaira, resolveMediaUrl } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
 import { StoreStoriesManager } from '../../components/dashboard/StoreStoriesManager';
@@ -37,9 +37,14 @@ export const SettingsPage: React.FC = () => {
   // Form states
   const [businessName, setBusinessName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
+  const [logoImageError, setLogoImageError] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [r2Status, setR2Status] = useState<any>(null);
+
+  const [bannerUrl, setBannerUrl] = useState('');
+  const [bannerImageError, setBannerImageError] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+  const bannerFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [description, setDescription] = useState('');
   const [phone, setPhone] = useState('');
@@ -63,7 +68,6 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     loadSettings();
-    api.getR2StorageStatus().then(status => setR2Status(status)).catch(() => {});
     return () => {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
@@ -82,12 +86,15 @@ export const SettingsPage: React.FC = () => {
       setBusiness(b);
       setSettings(s);
       setProducts(prodRes || []);
-      setStoreSlug(bizRes.store?.slug || 'chi-beauty');
+      setStoreSlug(bizRes.store?.slug || '');
       setSubscription(subRes);
 
       if (b) {
         setBusinessName(b.name || '');
         setLogoUrl(b.logo_url || '');
+        setLogoImageError(false);
+        setBannerUrl(b.banner_url || s?.banner_url || '');
+        setBannerImageError(false);
         setDescription(b.description || '');
         setPhone(b.phone || '');
         setWhatsapp(b.whatsapp_number || '');
@@ -98,6 +105,9 @@ export const SettingsPage: React.FC = () => {
 
       if (s) {
         setPrimaryColor(s.primary_color || '#10B981');
+        if (s.banner_url && !b?.banner_url) {
+          setBannerUrl(s.banner_url);
+        }
         setEnableCheckout(s.enable_checkout);
         setEnableCatalogue(s.enable_catalogue);
         setShowWhatsapp(s.show_whatsapp);
@@ -113,15 +123,120 @@ export const SettingsPage: React.FC = () => {
     const file = files?.[0];
     if (!file) return;
     setIsUploadingLogo(true);
+    setLogoImageError(false);
     try {
       const res = await api.uploadMedia(file, { folder: 'branding' });
       setLogoUrl(res.url);
-      success('Logo uploaded directly to Cloudflare R2 bucket storage');
+
+      // Immediately save to business profile so merchant doesn't lose it
+      await api.updateMerchantBusiness({
+        name: businessName,
+        logo_url: res.url,
+        banner_url: bannerUrl,
+        description,
+        phone,
+        whatsapp_number: whatsapp,
+        address,
+        city,
+        state
+      });
+
+      success('Store logo uploaded and saved successfully');
     } catch (err: any) {
       error(err.message || 'Failed to upload logo');
     } finally {
       setIsUploadingLogo(false);
       if (logoFileInputRef.current) logoFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLogoUrl('');
+    setLogoImageError(false);
+    try {
+      await api.updateMerchantBusiness({
+        name: businessName,
+        logo_url: '',
+        banner_url: bannerUrl,
+        description,
+        phone,
+        whatsapp_number: whatsapp,
+        address,
+        city,
+        state
+      });
+      success('Store logo removed');
+    } catch (err: any) {
+      error(err.message || 'Failed to remove logo');
+    }
+  };
+
+  const handleBannerUpload = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setIsUploadingBanner(true);
+    setBannerImageError(false);
+    try {
+      const res = await api.uploadMedia(file, { folder: 'branding' });
+      setBannerUrl(res.url);
+
+      // Immediately save to business profile & store settings so merchant doesn't lose it
+      await Promise.all([
+        api.updateMerchantBusiness({
+          name: businessName,
+          logo_url: logoUrl,
+          banner_url: res.url,
+          description,
+          phone,
+          whatsapp_number: whatsapp,
+          address,
+          city,
+          state
+        }),
+        api.updateStoreSettings({
+          banner_url: res.url,
+          primary_color: primaryColor,
+          enable_checkout: enableCheckout,
+          enable_catalogue: enableCatalogue,
+          show_whatsapp: showWhatsapp,
+          flat_delivery_fee: toKobo(Number(deliveryFeeNaira) || 0),
+          delivery_information: deliveryInfo
+        })
+      ]);
+
+      success('Storefront banner uploaded and saved successfully');
+    } catch (err: any) {
+      error(err.message || 'Failed to upload banner');
+    } finally {
+      setIsUploadingBanner(false);
+      if (bannerFileInputRef.current) bannerFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveBanner = async () => {
+    setBannerUrl('');
+    setBannerImageError(false);
+    try {
+      await Promise.all([
+        api.updateMerchantBusiness({
+          name: businessName,
+          logo_url: logoUrl,
+          banner_url: '',
+          description,
+          phone,
+          whatsapp_number: whatsapp,
+          address,
+          city,
+          state
+        }),
+        api.updateStoreSettings({
+          banner_url: '',
+          primary_color: primaryColor
+        })
+      ]);
+      success('Storefront banner removed');
+    } catch (err: any) {
+      error(err.message || 'Failed to remove banner');
     }
   };
 
@@ -180,6 +295,7 @@ export const SettingsPage: React.FC = () => {
       await api.updateMerchantBusiness({
         name: businessName,
         logo_url: logoUrl,
+        banner_url: bannerUrl,
         description,
         phone,
         whatsapp_number: whatsapp,
@@ -190,6 +306,7 @@ export const SettingsPage: React.FC = () => {
 
       await api.updateStoreSettings({
         primary_color: primaryColor,
+        banner_url: bannerUrl,
         enable_checkout: enableCheckout,
         enable_catalogue: enableCatalogue,
         show_whatsapp: showWhatsapp,
@@ -436,33 +553,29 @@ export const SettingsPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-slate-900">Business Profile & Brand Assets</h3>
-                  <p className="text-xs text-slate-500">Contact information and logo stored in Cloudflare R2</p>
+                  <p className="text-xs text-slate-500">Contact information, store details and brand assets</p>
                 </div>
-              </div>
-
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-2xs font-semibold border border-emerald-200">
-                <Cloud className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Cloudflare R2 Media Active</span>
               </div>
             </div>
 
-            {/* Store Logo Upload with Cloudflare R2 */}
+            {/* Store Logo Upload */}
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
                 <div className="w-14 h-14 rounded-2xl border-2 border-slate-200 bg-white overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
-                  {logoUrl ? (
-                    <img src={logoUrl} alt="Store logo" className="w-full h-full object-cover" />
+                  {resolveMediaUrl(logoUrl) && !logoImageError ? (
+                    <img
+                      src={resolveMediaUrl(logoUrl)}
+                      alt="Store logo"
+                      className="w-full h-full object-cover"
+                      onError={() => setLogoImageError(true)}
+                      onLoad={() => setLogoImageError(false)}
+                    />
                   ) : (
                     <Store className="w-6 h-6 text-slate-400" />
                   )}
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>Store Logo</span>
-                    <span className="text-3xs px-1.5 py-0.2 bg-emerald-100 text-emerald-700 rounded font-medium">
-                      Cloudflare R2
-                    </span>
-                  </h4>
+                  <h4 className="text-xs font-bold text-slate-900">Store Logo</h4>
                   <p className="text-2xs text-slate-500 mt-0.5">
                     Upload your high-resolution brand logo (PNG, JPG, SVG)
                   </p>
@@ -491,13 +604,73 @@ export const SettingsPage: React.FC = () => {
                   ) : (
                     <Upload className="w-3.5 h-3.5" />
                   )}
-                  <span>{isUploadingLogo ? 'Uploading to R2...' : 'Upload Logo'}</span>
+                  <span>{isUploadingLogo ? 'Uploading...' : 'Upload Logo'}</span>
                 </Button>
                 {logoUrl && (
                   <button
                     type="button"
-                    onClick={() => setLogoUrl('')}
-                    className="text-2xs font-semibold text-slate-400 hover:text-red-600 transition"
+                    onClick={handleRemoveLogo}
+                    className="text-2xs font-semibold text-slate-400 hover:text-red-600 transition cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Storefront Banner Upload */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-20 h-12 rounded-xl border-2 border-slate-200 bg-white overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
+                  {resolveMediaUrl(bannerUrl) && !bannerImageError ? (
+                    <img
+                      src={resolveMediaUrl(bannerUrl)}
+                      alt="Storefront banner"
+                      className="w-full h-full object-cover"
+                      onError={() => setBannerImageError(true)}
+                      onLoad={() => setBannerImageError(false)}
+                    />
+                  ) : (
+                    <ImageIcon className="w-6 h-6 text-slate-400" />
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-900">Storefront Cover Banner</h4>
+                  <p className="text-2xs text-slate-500 mt-0.5">
+                    Recommended: 1400×400px (JPG, PNG, WebP). Displayed on your public storefront.
+                  </p>
+                </div>
+              </div>
+
+              <input
+                type="file"
+                ref={bannerFileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={e => handleBannerUpload(e.target.files)}
+              />
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isUploadingBanner}
+                  onClick={() => bannerFileInputRef.current?.click()}
+                  className="bg-white text-xs gap-1.5"
+                >
+                  {isUploadingBanner ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isUploadingBanner ? 'Uploading...' : 'Upload Banner'}</span>
+                </Button>
+                {bannerUrl && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveBanner}
+                    className="text-2xs font-semibold text-slate-400 hover:text-red-600 transition cursor-pointer"
                   >
                     Remove
                   </button>
@@ -611,49 +784,6 @@ export const SettingsPage: React.FC = () => {
                 />
               </div>
             </div>
-          </div>
-
-          {/* Media & Cloudflare R2 Storage Status */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-lg space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-2xl text-emerald-400">
-                  <Cloud className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <span>Cloudflare R2 Bucket Storage</span>
-                    <span className="text-3xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                      Active
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-400">
-                    High-performance object storage with zero egress fees for all merchant media uploads
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
-                <span className="text-2xs text-slate-400 font-medium block">Storage Protocol</span>
-                <span className="font-semibold text-white">S3 API Compatible (R2)</span>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
-                <span className="text-2xs text-slate-400 font-medium block">CDN Distribution</span>
-                <span className="font-semibold text-emerald-400">Global Cloudflare Edge</span>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1">
-                <span className="text-2xs text-slate-400 font-medium block">Egress Bandwidth Fee</span>
-                <span className="font-semibold text-emerald-300">$0.00 / Unlimited</span>
-              </div>
-            </div>
-
-            <p className="text-2xs text-slate-400 leading-relaxed">
-              All your store logos, product gallery snapshots, and storefront story slides are automatically stored directly in your Cloudflare R2 bucket.
-            </p>
           </div>
 
           <div className="flex justify-end pt-4">

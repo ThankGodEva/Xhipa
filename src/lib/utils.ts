@@ -145,6 +145,48 @@ export function generateWhatsAppOrderUrl(params: {
 }
 
 /**
+ * Format human-readable WhatsApp checkout message
+ */
+export function formatWhatsAppOrderMessage(params: {
+  businessName: string;
+  customerName: string;
+  customerPhone: string;
+  customerAddress?: string;
+  items: Array<{ productName: string; quantity: number; unitPriceInKobo: number; subtotalInKobo: number }>;
+  subtotalInKobo: number;
+  deliveryFeeInKobo: number;
+  totalInKobo: number;
+  orderNumber: string;
+  notes?: string;
+}): string {
+  let text = `🛍️ *NEW ORDER - #${params.orderNumber}*\n`;
+  text += `*Store:* ${params.businessName}\n`;
+  text += `──────────────────────\n\n`;
+  text += `*Items Ordered:*\n`;
+
+  params.items.forEach((item, idx) => {
+    text += `${idx + 1}. ${item.productName} × ${item.quantity} - ${formatCurrency(item.subtotalInKobo)}\n`;
+  });
+
+  text += `\n*Subtotal:* ${formatCurrency(params.subtotalInKobo)}\n`;
+  text += `*Delivery Fee:* ${params.deliveryFeeInKobo === 0 ? 'FREE / Pickup' : formatCurrency(params.deliveryFeeInKobo)}\n`;
+  text += `*Total Due:* ${formatCurrency(params.totalInKobo)}\n\n`;
+
+  text += `*Customer Details:*\n`;
+  text += `• Name: ${params.customerName}\n`;
+  text += `• Phone: ${params.customerPhone}\n`;
+  if (params.customerAddress) {
+    text += `• Delivery Address: ${params.customerAddress}\n`;
+  }
+  if (params.notes) {
+    text += `• Delivery Note: ${params.notes}\n`;
+  }
+
+  text += `\nPlease reply with confirmation and payment/account details to fulfill this order. Thank you!`;
+  return text;
+}
+
+/**
  * Format relative or standard date
  */
 export function formatDate(dateString: string): string {
@@ -193,3 +235,136 @@ export function getTikTokEmbedUrl(url: string): string | null {
   }
   return null;
 }
+
+/**
+ * Safely resolves an image or media URL (handling absolute URLs, R2 keys, and relative backend proxy routes)
+ */
+export function resolveMediaUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // Already a valid data URL
+  if (trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+
+  // If it's already a full http(s) URL
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    // If it points to an unconfigured placeholder domain, redirect through the media proxy
+    if (trimmed.includes('media.xhipa.com') || trimmed.includes('pub-xxxx') || trimmed.includes('your-bucket')) {
+      const match = trimmed.match(/(branding|products|uploads|general)\/.+/);
+      if (match) return `/api/media/${match[0]}`;
+    }
+    return trimmed;
+  }
+
+  // If it's already a root-relative path (e.g. /api/media/...)
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  // If it starts with media.xhipa.com or similar custom domain without protocol
+  if (trimmed.startsWith('media.xhipa.com/')) {
+    const key = trimmed.replace(/^media\.xhipa\.com\//, '');
+    return `/api/media/${key}`;
+  }
+
+  // If it contains a raw .r2.dev domain without protocol
+  if (trimmed.includes('.r2.dev/')) {
+    const parts = trimmed.split('.r2.dev/');
+    if (parts[1]) return `/api/media/${parts[1]}`;
+  }
+
+  // If it's a bare storage key like branding/..., products/..., uploads/...
+  if (
+    trimmed.startsWith('branding/') ||
+    trimmed.startsWith('products/') ||
+    trimmed.startsWith('uploads/') ||
+    trimmed.startsWith('general/')
+  ) {
+    return `/api/media/${trimmed}`;
+  }
+
+  return trimmed;
+}
+
+/**
+ * Optimizes an image file in the browser before upload (resizing large dimensions & compressing)
+ */
+export async function optimizeImageForUpload(
+  file: File,
+  maxDimension = 1920,
+  quality = 0.88
+): Promise<File | Blob> {
+  // If not an image or is SVG / GIF (preserve animations and vector), return original
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
+    return file;
+  }
+
+  // If file is already small (< 400KB), return as is
+  if (file.size < 400 * 1024) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            let { width, height } = img;
+            if (width > maxDimension || height > maxDimension) {
+              if (width > height) {
+                height = Math.round((height * maxDimension) / width);
+                width = maxDimension;
+              } else {
+                width = Math.round((width * maxDimension) / height);
+                height = maxDimension;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              return resolve(file);
+            }
+
+            // Fill white background for transparent PNGs converted to JPEG
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+              (blob) => {
+                if (blob && blob.size < file.size) {
+                  const optimizedFile = new File([blob], file.name.replace(/\.[^/.]+$/, '.jpg'), {
+                    type: 'image/jpeg',
+                    lastModified: Date.now(),
+                  });
+                  resolve(optimizedFile);
+                } else {
+                  resolve(file);
+                }
+              },
+              'image/jpeg',
+              quality
+            );
+          } catch {
+            resolve(file);
+          }
+        };
+        img.onerror = () => resolve(file);
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => resolve(file);
+      reader.readAsDataURL(file);
+    } catch {
+      resolve(file);
+    }
+  });
+}
+

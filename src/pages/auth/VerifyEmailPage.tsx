@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Store, CheckCircle2, ArrowRight, RefreshCw, AlertCircle, Sparkles, LogOut } from 'lucide-react';
+import { Mail, CheckCircle2, ArrowRight, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 export const VerifyEmailPage: React.FC = () => {
-  const { user, logout, resendVerificationEmail, checkEmailVerification, markEmailAsVerified } = useAuth();
+  const { user, logout, resendVerificationEmail, checkEmailVerification } = useAuth();
   const { success, error, info } = useToast();
   const navigate = useNavigate();
 
@@ -14,10 +14,10 @@ export const VerifyEmailPage: React.FC = () => {
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // If user is already email verified, redirect to onboarding or dashboard
+  // If user is already email verified, redirect to login with verified flag
   useEffect(() => {
     if (user?.is_email_verified) {
-      navigate('/onboarding');
+      navigate('/login?verified=true');
     }
   }, [user?.is_email_verified, navigate]);
 
@@ -34,8 +34,8 @@ export const VerifyEmailPage: React.FC = () => {
     try {
       const isVerified = await checkEmailVerification();
       if (isVerified) {
-        success('🎉 Email verified successfully! Redirecting to store setup...');
-        setTimeout(() => navigate('/onboarding'), 1200);
+        success('🎉 Email verified successfully! Please sign in to access your dashboard.');
+        setTimeout(() => navigate('/login?verified=true'), 1000);
       } else {
         info('Email not yet verified. Please click the link in your inbox.');
       }
@@ -60,12 +60,6 @@ export const VerifyEmailPage: React.FC = () => {
     }
   };
 
-  const handleSimulateVerification = () => {
-    markEmailAsVerified();
-    success('✅ Email verification confirmed (Preview Mode)! Redirecting...');
-    setTimeout(() => navigate('/onboarding'), 800);
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
@@ -88,7 +82,7 @@ export const VerifyEmailPage: React.FC = () => {
 
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Verify your email address</h2>
           <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-            We sent a verification link from Supabase to:
+            We sent a verification link to:
           </p>
 
           {/* Email Address Highlight Card */}
@@ -114,7 +108,7 @@ export const VerifyEmailPage: React.FC = () => {
               <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white font-bold text-2xs">
                 3
               </span>
-              <span>Return here or click below to proceed to your store setup & dashboard.</span>
+              <span>After verifying, sign in to your merchant account to access your live store dashboard.</span>
             </div>
           </div>
 
@@ -143,33 +137,16 @@ export const VerifyEmailPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* Preview Testing / Simulation Helper */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left">
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <span className="text-2xs font-bold text-slate-700 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-                  Testing in AI Studio Preview?
-                </span>
-                <span className="text-3xs font-semibold px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full">
-                  Instant Test
-                </span>
-              </div>
-              <p className="text-2xs text-slate-500 mb-2 leading-relaxed">
-                If you are testing without live Supabase SMTP email delivery, click below to confirm verification and proceed directly.
-              </p>
-              <button
-                type="button"
-                onClick={handleSimulateVerification}
-                className="w-full py-1.5 px-3 bg-white text-xs font-semibold text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-50 transition cursor-pointer text-center"
-              >
-                Confirm Verification (Preview Mode) →
-              </button>
-            </div>
-          </div>
+          {/* Direct Sign in and Switch account */}
+          <div className="mt-6 pt-5 border-t border-slate-100 flex flex-col items-center gap-3">
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition"
+            >
+              <span>Already verified? Sign in to your dashboard</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
 
-          {/* Sign Out Option */}
-          <div className="mt-4 text-center">
             <button
               type="button"
               onClick={logout}

@@ -45,9 +45,9 @@ router.get('/track-click', async (req: Request, res: Response) => {
  * GET /api/affiliate/validate-code/:code
  * Publicly verifies if a referral code exists and is active
  */
-router.get('/validate-code/:code', (req: Request, res: Response) => {
+router.get('/validate-code/:code', async (req: Request, res: Response) => {
   const code = req.params.code;
-  const validation = affiliateService.validateReferralCode(code);
+  const validation = await affiliateService.validateReferralCode(code);
 
   if (!validation.valid) {
     return res.status(404).json({ success: false, error: { message: validation.error } });
@@ -81,7 +81,7 @@ router.get('/dashboard', requireAuth, async (req: AuthenticatedRequest, res: Res
     return res.json({ success: true, data: dashboard });
   } catch (err: any) {
     console.error('[Affiliate Dashboard Error]:', err);
-    return res.status(500).json({ success: false, error: { message: err.message || 'Internal server error' } });
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message || 'Internal server error' } });
   }
 });
 
@@ -113,7 +113,7 @@ router.put('/payout-details', requireAuth, async (req: AuthenticatedRequest, res
       message: 'Bank payout details updated successfully.'
     });
   } catch (err: any) {
-    return res.status(500).json({ success: false, error: { message: err.message } });
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
   }
 });
 
@@ -121,25 +121,37 @@ router.put('/payout-details', requireAuth, async (req: AuthenticatedRequest, res
  * GET /api/affiliate/notifications
  * In-app notification feed for the affiliate
  */
-router.get('/notifications', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const notifs = notificationService.getUserNotifications(req.user!.id);
-  return res.json({ success: true, data: notifs });
+router.get('/notifications', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const notifs = await notificationService.getUserNotifications(req.user!.id);
+    return res.json({ success: true, data: notifs });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 /**
  * PATCH /api/affiliate/notifications/:id/read
  */
-router.patch('/notifications/:id/read', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const success = notificationService.markAsRead(req.params.id, req.user!.id);
-  return res.json({ success });
+router.patch('/notifications/:id/read', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const success = await notificationService.markAsRead(req.params.id, req.user!.id);
+    return res.json({ success });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 /**
  * POST /api/affiliate/notifications/mark-all-read
  */
-router.post('/notifications/mark-all-read', requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const count = notificationService.markAllAsRead(req.user!.id);
-  return res.json({ success: true, count });
+router.post('/notifications/mark-all-read', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const count = await notificationService.markAllAsRead(req.user!.id);
+    return res.json({ success: true, count });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 // ==========================================
@@ -149,75 +161,91 @@ router.post('/notifications/mark-all-read', requireAuth, (req: AuthenticatedRequ
 /**
  * GET /api/admin/affiliates
  */
-router.get('/admin/affiliates', requireAuth, requirePlatformAdmin, (_req: AuthenticatedRequest, res: Response) => {
-  const affiliates = affiliateService.adminGetAllAffiliates();
-  return res.json({ success: true, data: affiliates });
+router.get('/admin/affiliates', requireAuth, requirePlatformAdmin, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const affiliates = await affiliateService.adminGetAllAffiliates();
+    return res.json({ success: true, data: affiliates });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 /**
  * GET /api/admin/referrals
  */
-router.get('/admin/referrals', requireAuth, requirePlatformAdmin, (_req: AuthenticatedRequest, res: Response) => {
-  const referrals = affiliateService.adminGetAllReferrals();
-  return res.json({ success: true, data: referrals });
+router.get('/admin/referrals', requireAuth, requirePlatformAdmin, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const referrals = await affiliateService.adminGetAllReferrals();
+    return res.json({ success: true, data: referrals });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 /**
  * GET /api/admin/commissions
  */
-router.get('/admin/commissions', requireAuth, requirePlatformAdmin, (_req: AuthenticatedRequest, res: Response) => {
-  const commissions = affiliateService.adminGetAllCommissions();
-  return res.json({ success: true, data: commissions });
+router.get('/admin/commissions', requireAuth, requirePlatformAdmin, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const commissions = await affiliateService.adminGetAllCommissions();
+    return res.json({ success: true, data: commissions });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 /**
  * GET /api/admin/payouts
  */
-router.get('/admin/payouts', requireAuth, requirePlatformAdmin, (_req: AuthenticatedRequest, res: Response) => {
-  const payouts = affiliateService.adminGetAllPayouts();
-  return res.json({ success: true, data: payouts });
+router.get('/admin/payouts', requireAuth, requirePlatformAdmin, async (_req: AuthenticatedRequest, res: Response) => {
+  try {
+    const payouts = await affiliateService.adminGetAllPayouts();
+    return res.json({ success: true, data: payouts });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
+  }
 });
 
 /**
  * PATCH /api/admin/affiliates/:id/status
  */
-router.patch('/admin/affiliates/:id/status', requireAuth, requirePlatformAdmin, (req: AuthenticatedRequest, res: Response) => {
+router.patch('/admin/affiliates/:id/status', requireAuth, requirePlatformAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const { status } = req.body;
   if (status !== 'active' && status !== 'suspended') {
     return res.status(400).json({ success: false, error: { message: 'Status must be active or suspended.' } });
   }
 
   try {
-    const updated = affiliateService.adminSetAffiliateStatus(req.params.id, status);
+    const updated = await affiliateService.adminSetAffiliateStatus(req.params.id, status);
     return res.json({ success: true, data: updated });
   } catch (err: any) {
-    return res.status(404).json({ success: false, error: { message: err.message } });
+    return res.status(err.statusCode || 404).json({ success: false, error: { message: err.message } });
   }
 });
 
 /**
  * PATCH /api/admin/referrals/:id/fraud
  */
-router.patch('/admin/referrals/:id/fraud', requireAuth, requirePlatformAdmin, (req: AuthenticatedRequest, res: Response) => {
+router.patch('/admin/referrals/:id/fraud', requireAuth, requirePlatformAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   try {
-    const updated = affiliateService.adminMarkReferralFraudulent(req.params.id, reason || 'Flagged by Administrator');
+    const updated = await affiliateService.adminMarkReferralFraudulent(req.params.id, reason || 'Flagged by Administrator');
     return res.json({ success: true, data: updated, message: 'Referral marked as fraudulent and pending commission cancelled.' });
   } catch (err: any) {
-    return res.status(404).json({ success: false, error: { message: err.message } });
+    return res.status(err.statusCode || 404).json({ success: false, error: { message: err.message } });
   }
 });
 
 /**
  * PATCH /api/admin/commissions/:id/cancel
  */
-router.patch('/admin/commissions/:id/cancel', requireAuth, requirePlatformAdmin, (req: AuthenticatedRequest, res: Response) => {
+router.patch('/admin/commissions/:id/cancel', requireAuth, requirePlatformAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const { reason } = req.body;
   try {
-    const updated = affiliateService.adminCancelCommission(req.params.id, reason || 'Cancelled by Administrator');
+    const updated = await affiliateService.adminCancelCommission(req.params.id, reason || 'Cancelled by Administrator');
     return res.json({ success: true, data: updated, message: 'Commission successfully cancelled/reversed.' });
   } catch (err: any) {
-    return res.status(404).json({ success: false, error: { message: err.message } });
+    return res.status(err.statusCode || 404).json({ success: false, error: { message: err.message } });
   }
 });
 
@@ -245,10 +273,10 @@ router.post('/admin/payouts/process', requireAuth, requirePlatformAdmin, async (
     return res.json({
       success: true,
       data: payout,
-      message: 'Payout recorded and commissions updated to paid.'
+      message: 'Payout recorded and associated commissions marked as paid.'
     });
   } catch (err: any) {
-    return res.status(400).json({ success: false, error: { message: err.message } });
+    return res.status(err.statusCode || 500).json({ success: false, error: { message: err.message } });
   }
 });
 

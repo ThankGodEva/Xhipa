@@ -25,6 +25,7 @@ export interface Business {
   slug: string;
   description?: string;
   logo_url?: string;
+  banner_url?: string;
   phone: string;
   whatsapp_number: string;
   email: string;
@@ -61,6 +62,7 @@ export interface StoreSettings {
   business_id: string;
   theme: string;
   primary_color: string;
+  banner_url?: string;
   show_logo: boolean;
   show_phone: boolean;
   show_whatsapp: boolean;
@@ -168,7 +170,8 @@ export interface Order {
 export interface Payment {
   id: string;
   business_id: string;
-  order_id: string;
+  order_id?: string | null;
+  payment_type?: 'order' | 'subscription';
   provider: string;
   provider_reference: string;
   amount: number; // in Kobo
