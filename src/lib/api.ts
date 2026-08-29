@@ -13,6 +13,8 @@ import {
   StoreSettings,
   SubscriptionPlan,
   StoryHighlightGroup,
+  StoreReview,
+  ReviewStats,
 } from '../types';
 
 const API_BASE = '/api';
@@ -44,7 +46,12 @@ async function safeParseJson<T = any>(res: Response, fallbackError = 'Request fa
     try {
       data = JSON.parse(text);
     } catch {
-      data = { success: false, error: { message: text.slice(0, 150) || fallbackError } };
+      const cleanMessage = text
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 120);
+      data = { success: false, error: { message: cleanMessage || `${fallbackError} (${res.status})` } };
     }
   }
 
@@ -63,7 +70,7 @@ export const api = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, userId })
       });
-      const data = await res.json();
+      const data = await safeParseJson(res, 'Email check failed');
       if (res.ok && data.success) {
         return { isVerified: Boolean(data.isVerified), emailConfirmedAt: data.emailConfirmedAt };
       }
@@ -78,7 +85,7 @@ export const api = {
     const cleanSlug = slug?.toLowerCase().trim();
     try {
       const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(slug)}`);
-      const data = await res.json();
+      const data = await safeParseJson(res, 'Store not found');
       if (res.ok && data.success && data.data) {
         return data.data;
       }
@@ -101,7 +108,7 @@ export const api = {
     const cleanStoreSlug = storeSlug?.toLowerCase().trim();
     try {
       const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(storeSlug)}/product/${encodeURIComponent(productSlug)}`);
-      const data = await res.json();
+      const data = await safeParseJson(res, 'Product not found');
       if (res.ok && data.success && data.data) {
         return data.data;
       }
@@ -128,6 +135,47 @@ export const api = {
     return this.getProductDetail(storeSlug, productSlug);
   },
 
+  // Storefront Reviews
+  async getStoreReviews(slug: string, productId?: string): Promise<{ reviews: StoreReview[]; stats: ReviewStats }> {
+    const url = productId 
+      ? `${API_BASE}/storefront/${encodeURIComponent(slug)}/reviews?productId=${encodeURIComponent(productId)}`
+      : `${API_BASE}/storefront/${encodeURIComponent(slug)}/reviews`;
+    const res = await fetch(url);
+    const data = await safeParseJson(res, 'Failed to load reviews');
+    return data.data || { reviews: [], stats: { average_rating: 5, total_reviews: 0, verified_reviews_count: 0, rating_distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } } };
+  },
+
+  async submitStoreReview(slug: string, payload: {
+    customer_name: string;
+    customer_email?: string;
+    customer_avatar?: string;
+    location?: string;
+    product_id?: string;
+    product_name?: string;
+    rating: number;
+    comment: string;
+    photos?: string[];
+    order_number?: string;
+    source?: 'storefront' | 'order_tracking' | 'merchant_manual';
+  }): Promise<StoreReview> {
+    const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(slug)}/reviews`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await safeParseJson(res, 'Failed to submit review');
+    return data.data;
+  },
+
+  async voteReviewHelpful(slug: string, reviewId: string): Promise<{ helpful_votes: number }> {
+    const res = await fetch(`${API_BASE}/storefront/${encodeURIComponent(slug)}/reviews/${encodeURIComponent(reviewId)}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await safeParseJson(res, 'Failed to register vote');
+    return data.data;
+  },
+
   // Checkout & Orders
   async checkout(payload: {
     storeSlug: string;
@@ -141,19 +189,13 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Checkout failed');
-    }
+    const data = await safeParseJson(res, 'Checkout failed');
     return data.data;
   },
 
   async trackOrder(orderNumber: string): Promise<{ order: Order; business: any; settings: any }> {
     const res = await fetch(`${API_BASE}/orders/track/${encodeURIComponent(orderNumber)}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Order not found');
-    }
+    const data = await safeParseJson(res, 'Order not found');
     return data.data;
   },
 
@@ -169,26 +211,20 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Payment initialization failed');
-    }
+    const data = await safeParseJson(res, 'Payment initialization failed');
     return data.data;
   },
 
   async verifyPayment(reference: string): Promise<{ success: boolean; orderId?: string; message: string }> {
     const res = await fetch(`${API_BASE}/payments/verify/${encodeURIComponent(reference)}`);
-    const data = await res.json();
-    if (!res.ok || !data.success) {
-      throw new Error(data?.error?.message || 'Payment verification failed');
-    }
+    const data = await safeParseJson(res, 'Payment verification failed');
     return data.data;
   },
 
   // Subscription Plans
   async getPlans(): Promise<SubscriptionPlan[]> {
     const res = await fetch(`${API_BASE}/plans`);
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to fetch plans');
     return data.data || [];
   },
 
@@ -200,8 +236,7 @@ export const api = {
   // Merchant Portal
   async getMerchantOverview(): Promise<any> {
     const res = await fetch(`${API_BASE}/merchant/overview`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to load dashboard');
+    const data = await safeParseJson(res, 'Failed to load dashboard');
     return data.data;
   },
 
@@ -214,8 +249,7 @@ export const api = {
     recentOrders?: Order[];
   }> {
     const res = await fetch(`${API_BASE}/merchant/business`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to load business');
+    const data = await safeParseJson(res, 'Failed to load business');
     
     // Also attach metrics and recent orders if available from overview
     try {
@@ -252,8 +286,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update business');
+    const data = await safeParseJson(res, 'Failed to update business');
     return data.data;
   },
 
@@ -274,8 +307,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to complete onboarding');
+    const data = await safeParseJson(res, 'Failed to complete onboarding');
     return data.data;
   },
 
@@ -285,15 +317,13 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update store settings');
+    const data = await safeParseJson(res, 'Failed to update store settings');
     return data.data;
   },
 
   async getMerchantStories(): Promise<StoryHighlightGroup[]> {
     const res = await fetch(`${API_BASE}/merchant/stories`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to load stories');
+    const data = await safeParseJson(res, 'Failed to load stories');
     return data.data || [];
   },
 
@@ -303,8 +333,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ stories })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to save stories');
+    const data = await safeParseJson(res, 'Failed to save stories');
     return data.data || [];
   },
 
@@ -314,14 +343,13 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ status })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update publish state');
+    const data = await safeParseJson(res, 'Failed to update publish state');
     return data.data;
   },
 
   async getMerchantProducts(): Promise<Product[] & { products: Product[] }> {
     const res = await fetch(`${API_BASE}/merchant/products`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load products');
     const list: any = data.data || [];
     list.products = list;
     return list;
@@ -333,8 +361,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to create product');
+    const data = await safeParseJson(res, 'Failed to create product');
     const result: any = data.data;
     result.product = data.data;
     return result;
@@ -346,8 +373,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update product');
+    const data = await safeParseJson(res, 'Failed to update product');
     const result: any = data.data;
     result.product = data.data;
     return result;
@@ -358,13 +384,12 @@ export const api = {
       method: 'DELETE',
       headers: getAuthHeader()
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to delete product');
+    await safeParseJson(res, 'Failed to delete product');
   },
 
   async getMerchantCategories(): Promise<Category[] & { categories: Category[] }> {
     const res = await fetch(`${API_BASE}/merchant/categories`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load categories');
     const list: any = data.data || [];
     list.categories = list;
     return list;
@@ -376,14 +401,13 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to create category');
+    const data = await safeParseJson(res, 'Failed to create category');
     return data.data;
   },
 
   async getMerchantOrders(): Promise<Order[] & { orders: Order[] }> {
     const res = await fetch(`${API_BASE}/merchant/orders`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load orders');
     const list: any = data.data || [];
     list.orders = list;
     return list;
@@ -399,8 +423,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(body)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update order status');
+    const data = await safeParseJson(res, 'Failed to update order status');
     const result: any = data.data;
     result.order = data.data;
     return result;
@@ -408,10 +431,62 @@ export const api = {
 
   async getMerchantCustomers(): Promise<Customer[] & { customers: Customer[] }> {
     const res = await fetch(`${API_BASE}/merchant/customers`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load customers');
     const list: any = data.data || [];
     list.customers = list;
     return list;
+  },
+
+  // Merchant Review Management
+  async getMerchantReviews(): Promise<{ reviews: StoreReview[]; stats: ReviewStats }> {
+    const res = await fetch(`${API_BASE}/merchant/reviews`, { headers: getAuthHeader() });
+    const data = await safeParseJson(res, 'Failed to load reviews');
+    return data.data || { reviews: [], stats: { average_rating: 5, total_reviews: 0, verified_reviews_count: 0, rating_distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } } };
+  },
+
+  async createMerchantReview(payload: {
+    customer_name: string;
+    customer_email?: string;
+    customer_avatar?: string;
+    location?: string;
+    product_id?: string;
+    product_name?: string;
+    rating: number;
+    comment: string;
+    photos?: string[];
+    is_verified?: boolean;
+    is_approved?: boolean;
+    is_featured?: boolean;
+    order_number?: string;
+  }): Promise<StoreReview> {
+    const res = await fetch(`${API_BASE}/merchant/reviews`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify(payload)
+    });
+    const data = await safeParseJson(res, 'Failed to create review');
+    return data.data;
+  },
+
+  async updateMerchantReview(
+    reviewId: string,
+    updates: Partial<StoreReview>
+  ): Promise<StoreReview> {
+    const res = await fetch(`${API_BASE}/merchant/reviews/${encodeURIComponent(reviewId)}`, {
+      method: 'PATCH',
+      headers: getAuthHeader(),
+      body: JSON.stringify(updates)
+    });
+    const data = await safeParseJson(res, 'Failed to update review');
+    return data.data;
+  },
+
+  async deleteMerchantReview(reviewId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/merchant/reviews/${encodeURIComponent(reviewId)}`, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    await safeParseJson(res, 'Failed to delete review');
   },
 
   async getMerchantSubscription(): Promise<{
@@ -421,8 +496,7 @@ export const api = {
     usage?: any;
   }> {
     const res = await fetch(`${API_BASE}/merchant/subscription`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to load subscription');
+    const data = await safeParseJson(res, 'Failed to load subscription');
     
     const subData = data.data;
     const plan = subData.plan;
@@ -448,8 +522,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(params)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to initialize subscription payment');
+    const data = await safeParseJson(res, 'Failed to initialize subscription payment');
     return data.data;
   },
 
@@ -459,16 +532,14 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ planId })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to upgrade subscription');
+    const data = await safeParseJson(res, 'Failed to upgrade subscription');
     return data.data;
   },
 
   // Platform Admin
   async getAdminMetrics(): Promise<any> {
     const res = await fetch(`${API_BASE}/admin/metrics`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to load admin metrics');
+    const data = await safeParseJson(res, 'Failed to load admin metrics');
     return data.data;
   },
 
@@ -477,8 +548,8 @@ export const api = {
       fetch(`${API_BASE}/admin/businesses`, { headers: getAuthHeader() }),
       fetch(`${API_BASE}/admin/metrics`, { headers: getAuthHeader() })
     ]);
-    const bizData = await bizRes.json();
-    const metricsData = await metricsRes.json();
+    const bizData = await safeParseJson(bizRes, 'Failed to load businesses');
+    const metricsData = await safeParseJson(metricsRes, 'Failed to load metrics');
 
     const businesses = bizData.data || [];
     const metrics = metricsData.data || {
@@ -500,8 +571,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ status })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update status');
+    const data = await safeParseJson(res, 'Failed to update status');
     return data.data;
   },
 
@@ -515,8 +585,7 @@ export const api = {
 
   async getAffiliateDashboard(): Promise<import('../types').AffiliateDashboardStats> {
     const res = await fetch(`${API_BASE}/affiliate/dashboard`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to load affiliate dashboard');
+    const data = await safeParseJson(res, 'Failed to load affiliate dashboard');
     return data.data;
   },
 
@@ -526,14 +595,13 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payoutDetails)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update payout details');
+    const data = await safeParseJson(res, 'Failed to update payout details');
     return data.data;
   },
 
   async getAffiliateNotifications(): Promise<import('../types').AppNotification[]> {
     const res = await fetch(`${API_BASE}/affiliate/notifications`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load notifications');
     return data.data || [];
   },
 
@@ -554,25 +622,25 @@ export const api = {
   // Admin Affiliate Management
   async getAdminAffiliates(): Promise<any[]> {
     const res = await fetch(`${API_BASE}/admin/affiliates`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load affiliates');
     return data.data || [];
   },
 
   async getAdminReferrals(): Promise<any[]> {
     const res = await fetch(`${API_BASE}/admin/referrals`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load referrals');
     return data.data || [];
   },
 
   async getAdminCommissions(): Promise<any[]> {
     const res = await fetch(`${API_BASE}/admin/commissions`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load commissions');
     return data.data || [];
   },
 
   async getAdminPayouts(): Promise<any[]> {
     const res = await fetch(`${API_BASE}/admin/payouts`, { headers: getAuthHeader() });
-    const data = await res.json();
+    const data = await safeParseJson(res, 'Failed to load payouts');
     return data.data || [];
   },
 
@@ -582,8 +650,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ status })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update affiliate status');
+    const data = await safeParseJson(res, 'Failed to update affiliate status');
     return data.data;
   },
 
@@ -593,8 +660,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ reason })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to flag referral');
+    const data = await safeParseJson(res, 'Failed to flag referral');
     return data.data;
   },
 
@@ -604,8 +670,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ reason })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to cancel commission');
+    const data = await safeParseJson(res, 'Failed to cancel commission');
     return data.data;
   },
 
@@ -620,15 +685,14 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to record payout');
+    const data = await safeParseJson(res, 'Failed to record payout');
     return data.data;
   },
 
   async getPlatformSettings(): Promise<{ show_affiliate_button: boolean; affiliate_program_enabled: boolean; maintenance_mode?: boolean }> {
     try {
       const res = await fetch(`${API_BASE}/platform/settings`);
-      const data = await res.json();
+      const data = await safeParseJson(res, 'Failed to load platform settings');
       return data.data || { show_affiliate_button: true, affiliate_program_enabled: true };
     } catch {
       return { show_affiliate_button: true, affiliate_program_enabled: true };
@@ -637,8 +701,7 @@ export const api = {
 
   async getAdminPlatformSettings(): Promise<{ show_affiliate_button: boolean; affiliate_program_enabled: boolean; maintenance_mode?: boolean }> {
     const res = await fetch(`${API_BASE}/admin/platform/settings`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to fetch platform settings');
+    const data = await safeParseJson(res, 'Failed to fetch platform settings');
     return data.data;
   },
 
@@ -648,15 +711,13 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(payload)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update platform settings');
+    const data = await safeParseJson(res, 'Failed to update platform settings');
     return data.data;
   },
 
   async getAdminPlans(): Promise<SubscriptionPlan[]> {
     const res = await fetch(`${API_BASE}/admin/plans`, { headers: getAuthHeader() });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to fetch subscription plans');
+    const data = await safeParseJson(res, 'Failed to fetch subscription plans');
     return data.data || [];
   },
 
@@ -666,8 +727,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify({ is_active: isActive })
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update plan status');
+    const data = await safeParseJson(res, 'Failed to update plan status');
     return data.data;
   },
 
@@ -677,8 +737,7 @@ export const api = {
       headers: getAuthHeader(),
       body: JSON.stringify(updates)
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data?.error?.message || 'Failed to update plan');
+    const data = await safeParseJson(res, 'Failed to update plan');
     return data.data;
   },
 
@@ -784,7 +843,7 @@ export const api = {
   }> {
     try {
       const res = await fetch(`${API_BASE}/media/status`);
-      const data = await res.json();
+      const data = await safeParseJson(res, 'Failed to fetch storage status');
       return data.data;
     } catch {
       return {

@@ -131,30 +131,39 @@ export const StorefrontHome: React.FC = () => {
     return matchesCategory && matchesSearch;
   });
 
-  const handleOpenMainStory = () => {
-    setActiveStoryGroup({
-      id: 'welcome',
-      title: 'Welcome',
-      coverImage: resolveMediaUrl(business.logo_url) || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
-      slides: [
-        {
-          id: 'slide-1',
-          title: `Welcome to ${business.name} ✨`,
-          subtitle: business.description || 'Discover handmade organic skincare, cold-pressed oils and pure beauty formulas.',
-          image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800',
-          tag: 'Official Story',
-          product: products[0]
-        },
-        {
-          id: 'slide-2',
-          title: 'Direct Dispatch Across Nigeria 🚚',
-          subtitle: 'Orders shipped fast with tamper-proof packaging and order tracking.',
-          image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800',
-          tag: 'Fast Shipping'
+  const hasCustomStories = Array.isArray(data.stories) && data.stories.length > 0;
+  const hasStories = isDemo || hasCustomStories;
+
+  const handleOpenMainStory = hasStories
+    ? () => {
+        if (hasCustomStories && data.stories && data.stories.length > 0) {
+          setActiveStoryGroup(data.stories[0]);
+          return;
         }
-      ]
-    });
-  };
+        setActiveStoryGroup({
+          id: 'welcome',
+          title: 'Welcome',
+          coverImage: resolveMediaUrl(business.logo_url) || 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400',
+          slides: [
+            {
+              id: 'slide-1',
+              title: `Welcome to ${business.name} ✨`,
+              subtitle: business.description || 'Discover handmade organic skincare, cold-pressed oils and pure beauty formulas.',
+              image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=800',
+              tag: 'Official Story',
+              product: products[0]
+            },
+            {
+              id: 'slide-2',
+              title: 'Direct Dispatch Across Nigeria 🚚',
+              subtitle: 'Orders shipped fast with tamper-proof packaging and order tracking.',
+              image: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800',
+              tag: 'Fast Shipping'
+            }
+          ]
+        });
+      }
+    : undefined;
 
   return (
     <div className="min-h-screen bg-slate-50/70 flex flex-col">
@@ -175,6 +184,7 @@ export const StorefrontHome: React.FC = () => {
           business={business}
           settings={settings}
           storeSlug={store.slug}
+          hasStories={hasStories}
           onOpenStory={handleOpenMainStory}
         />
       </div>
@@ -184,6 +194,7 @@ export const StorefrontHome: React.FC = () => {
         business={business}
         products={products}
         stories={data.stories}
+        isDemo={isDemo}
         onOpenStory={group => setActiveStoryGroup(group)}
       />
 
@@ -338,7 +349,7 @@ export const StorefrontHome: React.FC = () => {
 
         {/* VIEW 3: REVIEWS & UGC */}
         {activeTab === 'reviews' && (
-          <SocialReviewsTab business={business} />
+          <SocialReviewsTab business={business} products={products} />
         )}
 
         {/* VIEW 4: ABOUT & FAQS */}

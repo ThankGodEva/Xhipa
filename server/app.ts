@@ -46,6 +46,17 @@ export function createApp() {
   app.use('/api', affiliateRoutes); // For /api/admin/* affiliate management endpoints
   app.use('/api', subscriptionRoutes);
 
+  // Catch-all for undefined /api/* routes to prevent falling through to Vite HTML
+  app.all('/api/*', (req: Request, res: Response) => {
+    res.status(404).json({
+      success: false,
+      error: {
+        code: 'NOT_FOUND',
+        message: `API route not found: ${req.method} ${req.originalUrl || req.url}`
+      }
+    });
+  });
+
   // Global Error Handler
   app.use((err: any, _req: Request, res: Response, _next: any) => {
     console.error('Unhandled server error:', err);

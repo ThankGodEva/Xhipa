@@ -20,6 +20,7 @@ interface SocialStoreHeroProps {
   business: Business;
   settings: StoreSettings;
   storeSlug: string;
+  hasStories?: boolean;
   onOpenStory?: () => void;
 }
 
@@ -27,6 +28,7 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
   business,
   settings,
   storeSlug,
+  hasStories = false,
   onOpenStory
 }) => {
   const { totalItems, setIsCartOpen } = useCart();
@@ -83,21 +85,44 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
       {/* Main Profile Info Section */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 sm:pb-8">
         <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-4 -mt-14 sm:-mt-16 md:-mt-20 mb-4 z-10">
-          {/* Avatar with Story Ring */}
+          {/* Avatar (with Story Ring only when stories exist) */}
           <div className="flex items-end gap-4 sm:gap-6">
-            <button
-              type="button"
-              onClick={onOpenStory}
-              className="relative p-1.5 rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-blue-500 shadow-xl group focus:outline-none cursor-pointer shrink-0 transition-transform active:scale-95 ring-4 ring-white"
-              title="Tap to view store story"
-            >
-              <div className="p-0.5 bg-white rounded-full">
+            {hasStories && onOpenStory ? (
+              <button
+                type="button"
+                onClick={onOpenStory}
+                className="relative p-1.5 rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-blue-500 shadow-xl group focus:outline-none cursor-pointer shrink-0 transition-transform active:scale-95 ring-4 ring-white"
+                title="Tap to view store story"
+              >
+                <div className="p-0.5 bg-white rounded-full">
+                  {resolvedLogo && !logoError ? (
+                    <img
+                      src={resolvedLogo}
+                      alt={business.name}
+                      onError={() => setLogoError(true)}
+                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full object-cover group-hover:opacity-95 transition"
+                    />
+                  ) : (
+                    <div
+                      className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full flex items-center justify-center text-white font-extrabold text-2xl md:text-3xl"
+                      style={{ backgroundColor: themeColor }}
+                    >
+                      {business.name.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <span className="absolute bottom-0 right-2 px-2 py-0.5 rounded-full text-3xs font-extrabold bg-blue-600 text-white ring-2 ring-white uppercase tracking-wider shadow-sm">
+                  Story
+                </span>
+              </button>
+            ) : (
+              <div className="relative p-1 bg-white rounded-full shadow-xl ring-4 ring-white shrink-0">
                 {resolvedLogo && !logoError ? (
                   <img
                     src={resolvedLogo}
                     alt={business.name}
                     onError={() => setLogoError(true)}
-                    className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full object-cover group-hover:opacity-95 transition"
+                    className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-full object-cover"
                   />
                 ) : (
                   <div
@@ -108,10 +133,7 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
                   </div>
                 )}
               </div>
-              <span className="absolute bottom-0 right-2 px-2 py-0.5 rounded-full text-3xs font-extrabold bg-blue-600 text-white ring-2 ring-white uppercase tracking-wider shadow-sm">
-                Story
-              </span>
-            </button>
+            )}
 
             {/* Profile Header on mobile */}
             <div className="md:hidden pb-1 min-w-0">

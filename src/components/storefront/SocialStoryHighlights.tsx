@@ -6,6 +6,7 @@ interface SocialStoryHighlightsProps {
   business: Business;
   products: Product[];
   stories?: StoryHighlightGroup[];
+  isDemo?: boolean;
   onOpenStory: (group: StoryHighlightGroup) => void;
 }
 
@@ -13,8 +14,16 @@ export const SocialStoryHighlights: React.FC<SocialStoryHighlightsProps> = ({
   business,
   products,
   stories,
+  isDemo = false,
   onOpenStory
 }) => {
+  const hasCustomStories = Array.isArray(stories) && stories.length > 0;
+
+  // Merchant storefronts without stories should NOT show the highlights bar at all
+  if (!isDemo && !hasCustomStories) {
+    return null;
+  }
+
   const p1 = products[0];
   const p2 = products[1];
   const p3 = products[2];
@@ -138,7 +147,11 @@ export const SocialStoryHighlights: React.FC<SocialStoryHighlightsProps> = ({
     }
   ];
 
-  const highlights = (stories && stories.length > 0) ? stories : defaultHighlights;
+  const highlights = hasCustomStories ? stories! : (isDemo ? defaultHighlights : []);
+
+  if (highlights.length === 0) {
+    return null;
+  }
 
   return (
     <div className="w-full py-4 border-b border-slate-100 bg-white/60">

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Business, Product, StoreSettings } from '../../types';
-import { toKobo, toNaira, resolveMediaUrl } from '../../lib/utils';
+import { toKobo, toNaira, resolveMediaUrl, optimizeImageForUpload } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
 import { StoreStoriesManager } from '../../components/dashboard/StoreStoriesManager';
@@ -120,11 +120,12 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleLogoUpload = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
+    const rawFile = files?.[0];
+    if (!rawFile) return;
     setIsUploadingLogo(true);
     setLogoImageError(false);
     try {
+      const file = await optimizeImageForUpload(rawFile, 1200, 0.9);
       const res = await api.uploadMedia(file, { folder: 'branding' });
       setLogoUrl(res.url);
 
@@ -172,37 +173,36 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleBannerUpload = async (files: FileList | null) => {
-    const file = files?.[0];
-    if (!file) return;
+    const rawFile = files?.[0];
+    if (!rawFile) return;
     setIsUploadingBanner(true);
     setBannerImageError(false);
     try {
+      const file = await optimizeImageForUpload(rawFile, 1920, 0.88);
       const res = await api.uploadMedia(file, { folder: 'branding' });
       setBannerUrl(res.url);
 
-      // Immediately save to business profile & store settings so merchant doesn't lose it
-      await Promise.all([
-        api.updateMerchantBusiness({
-          name: businessName,
-          logo_url: logoUrl,
-          banner_url: res.url,
-          description,
-          phone,
-          whatsapp_number: whatsapp,
-          address,
-          city,
-          state
-        }),
-        api.updateStoreSettings({
-          banner_url: res.url,
-          primary_color: primaryColor,
-          enable_checkout: enableCheckout,
-          enable_catalogue: enableCatalogue,
-          show_whatsapp: showWhatsapp,
-          flat_delivery_fee: toKobo(Number(deliveryFeeNaira) || 0),
-          delivery_information: deliveryInfo
-        })
-      ]);
+      // Save to business profile
+      await api.updateMerchantBusiness({
+        name: businessName,
+        logo_url: logoUrl,
+        banner_url: res.url,
+        description,
+        phone,
+        whatsapp_number: whatsapp,
+        address,
+        city,
+        state
+      });
+
+      // Best effort update to store settings banner
+      try {
+        await api.updateStoreSettings({
+          banner_url: res.url
+        });
+      } catch (storeErr) {
+        console.warn('Store settings banner sync deferred to form save:', storeErr);
+      }
 
       success('Storefront banner uploaded and saved successfully');
     } catch (err: any) {
@@ -217,23 +217,22 @@ export const SettingsPage: React.FC = () => {
     setBannerUrl('');
     setBannerImageError(false);
     try {
-      await Promise.all([
-        api.updateMerchantBusiness({
-          name: businessName,
-          logo_url: logoUrl,
-          banner_url: '',
-          description,
-          phone,
-          whatsapp_number: whatsapp,
-          address,
-          city,
-          state
-        }),
-        api.updateStoreSettings({
-          banner_url: '',
-          primary_color: primaryColor
-        })
-      ]);
+      await api.updateMerchantBusiness({
+        name: businessName,
+        logo_url: logoUrl,
+        banner_url: '',
+        description,
+        phone,
+        whatsapp_number: whatsapp,
+        address,
+        city,
+        state
+      });
+      try {
+        await api.updateStoreSettings({
+          banner_url: ''
+        });
+      } catch {}
       success('Storefront banner removed');
     } catch (err: any) {
       error(err.message || 'Failed to remove banner');

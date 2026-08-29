@@ -7,6 +7,7 @@ import { productRepository } from '../repositories/product.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { storyRepository } from '../repositories/story.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
+import { reviewRepository } from '../repositories/review.repository';
 import { Category, Product, ProductImage, StoreSettings } from '../../src/types';
 import { slugify } from '../../src/lib/utils';
 import { uploadBase64ToR2, normalizeMediaUrl } from '../services/r2Storage.service';
@@ -815,6 +816,116 @@ router.get('/customers', async (req: AuthenticatedRequest, res: Response) => {
     return res.json({ success: true, data: customers });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: { message: error.message || 'Failed to load customers.' } });
+  }
+});
+
+/**
+ * GET /api/merchant/reviews
+ */
+router.get('/reviews', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { membership } = await getOrCreateUserBusiness(req.user);
+    const reviews = await reviewRepository.getAllMerchantReviews(membership.business_id);
+    const stats = reviewRepository.calculateStats(reviews);
+    return res.json({
+      success: true,
+      data: {
+        reviews,
+        stats
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message || 'Failed to load reviews.' } });
+  }
+});
+
+/**
+ * POST /api/merchant/reviews
+ * Merchant adds manual customer review / testimonial
+ */
+router.post('/reviews', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { membership } = await getOrCreateUserBusiness(req.user);
+    const {
+      customer_name,
+      customer_email,
+      customer_avatar,
+      location,
+      product_id,
+      product_name,
+      rating,
+      comment,
+      photos,
+      is_verified,
+      is_approved,
+      is_featured,
+      order_number
+    } = req.body;
+
+    if (!customer_name || !customer_name.trim()) {
+      return res.status(400).json({ success: false, error: { message: 'Customer name is required.' } });
+    }
+
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ success: false, error: { message: 'Review comment is required.' } });
+    }
+
+    const created = await reviewRepository.createReview({
+      business_id: membership.business_id,
+      product_id: product_id || undefined,
+      product_name: product_name?.trim() || undefined,
+      customer_name: customer_name.trim(),
+      customer_email: customer_email?.trim() || undefined,
+      customer_avatar: customer_avatar || undefined,
+      location: location?.trim() || undefined,
+      rating: Number(rating) || 5,
+      comment: comment.trim(),
+      photos: Array.isArray(photos) ? photos : [],
+      is_verified: typeof is_verified === 'boolean' ? is_verified : true,
+      is_approved: typeof is_approved === 'boolean' ? is_approved : true,
+      is_featured: Boolean(is_featured),
+      source: 'merchant_manual',
+      order_number: order_number?.trim() || undefined
+    });
+
+    return res.status(201).json({ success: true, data: created });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message || 'Failed to create review.' } });
+  }
+});
+
+/**
+ * PATCH /api/merchant/reviews/:id
+ * Update review status, approval, or content
+ */
+router.patch('/reviews/:id', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { membership } = await getOrCreateUserBusiness(req.user);
+    const updated = await reviewRepository.updateReview(membership.business_id, req.params.id, req.body);
+    return res.json({ success: true, data: updated });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message || 'Failed to update review.' } });
+  }
+});
+
+/**
+ * DELETE /api/merchant/reviews/:id
+ */
+router.delete('/reviews/:id', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { membership } = await getOrCreateUserBusiness(req.user);
+    await reviewRepository.deleteReview(membership.business_id, req.params.id);
+    return res.json({ success: true, message: 'Review deleted successfully.' });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message || 'Failed to delete review.' } });
   }
 });
 

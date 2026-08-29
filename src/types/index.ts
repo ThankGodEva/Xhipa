@@ -399,3 +399,38 @@ export interface AppNotification {
   created_at: string;
 }
 
+export interface StoreReview {
+  id: string;
+  business_id: string;
+  product_id?: string;
+  product_name?: string;
+  customer_name: string;
+  customer_email?: string;
+  customer_avatar?: string;
+  location?: string;
+  rating: number; // 1 to 5
+  comment: string;
+  photos: string[];
+  is_verified: boolean;
+  is_approved: boolean;
+  is_featured: boolean;
+  helpful_votes: number;
+  source: 'storefront' | 'order_tracking' | 'merchant_manual';
+  order_number?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ReviewStats {
+  average_rating: number;
+  total_reviews: number;
+  verified_reviews_count: number;
+  rating_distribution: {
+    1: number;
+    2: number;
+    3: number;
+    4: number;
+    5: number;
+  };
+}
+

@@ -20,6 +20,7 @@ import { DashboardOverview } from './pages/dashboard/DashboardOverview';
 import { ProductsPage } from './pages/dashboard/ProductsPage';
 import { OrdersPage } from './pages/dashboard/OrdersPage';
 import { CustomersPage } from './pages/dashboard/CustomersPage';
+import { ReviewsPage } from './pages/dashboard/ReviewsPage';
 import { SettingsPage } from './pages/dashboard/SettingsPage';
 import { SubscriptionPage } from './pages/dashboard/SubscriptionPage';
 import { AffiliateDashboardPage } from './pages/affiliate/AffiliateDashboardPage';
@@ -86,6 +87,14 @@ export default function App() {
                 element={
                   <DashboardLayout>
                     <CustomersPage />
+                  </DashboardLayout>
+                }
+              />
+              <Route
+                path="/dashboard/reviews"
+                element={
+                  <DashboardLayout>
+                    <ReviewsPage />
                   </DashboardLayout>
                 }
               />

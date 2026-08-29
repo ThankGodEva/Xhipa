@@ -13,13 +13,17 @@ import {
   AlertCircle,
   Copy,
   Check,
-  Store as StoreIcon
+  Store as StoreIcon,
+  Star,
+  Sparkles,
+  Award
 } from 'lucide-react';
 import { api } from '../../lib/api';
-import { Order, Business, StoreSettings } from '../../types';
+import { Order, Business, StoreSettings, Product } from '../../types';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { WriteReviewModal } from '../../components/storefront/WriteReviewModal';
 import { useToast } from '../../context/ToastContext';
 
 export const OrderTrackingPage: React.FC = () => {
@@ -29,6 +33,8 @@ export const OrderTrackingPage: React.FC = () => {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasCopied, setHasCopied] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [hasSubmittedReview, setHasSubmittedReview] = useState(false);
   const { success, error } = useToast();
 
   useEffect(() => {
@@ -250,6 +256,69 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
         </div>
 
+        {/* Post-Delivery / Order Review Card */}
+        {business && (
+          <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-emerald-500/5 rounded-3xl p-6 sm:p-7 border border-amber-200/80 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs shrink-0">
+                  <Star className="w-6 h-6 fill-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Rate your experience with {business.name}
+                    </h3>
+                    <span className="inline-flex items-center gap-0.5 text-3xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      <Award className="w-3 h-3" />
+                      Verified Buyer
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    How was the packaging, delivery speed, and product quality?
+                  </p>
+                </div>
+              </div>
+
+              {hasSubmittedReview ? (
+                <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Review Submitted!</span>
+                </div>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => setIsReviewModalOpen(true)}
+                  className="gap-2 shadow-xs shrink-0"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>Leave a Review</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Quick 5 star click triggers modal */}
+            {!hasSubmittedReview && (
+              <div className="pt-3 border-t border-amber-200/60 flex items-center justify-between text-xs">
+                <span className="text-2xs font-semibold text-slate-600">Quick Star Rating:</span>
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setIsReviewModalOpen(true)}
+                      className="p-1 text-amber-500 hover:scale-125 transition-transform cursor-pointer"
+                    >
+                      <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Contact Merchant */}
         {business && (
           <div className="p-6 bg-slate-900 rounded-3xl text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -276,6 +345,19 @@ export const OrderTrackingPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {business && (
+        <WriteReviewModal
+          isOpen={isReviewModalOpen}
+          onClose={() => setIsReviewModalOpen(false)}
+          business={business}
+          prefilledOrderNumber={order.order_number}
+          onReviewSubmitted={() => {
+            setHasSubmittedReview(true);
+            success('Thank you! Your verified review has been posted.');
+          }}
+        />
+      )}
     </div>
   );
 };

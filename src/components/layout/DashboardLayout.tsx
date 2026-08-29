@@ -15,7 +15,8 @@ import {
   X,
   ShieldCheck,
   Crown,
-  Sparkles
+  Sparkles,
+  Star
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
@@ -92,6 +93,7 @@ export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ child
     { label: 'Products', path: '/dashboard/products', icon: <Package className="w-5 h-5" /> },
     { label: 'Orders', path: '/dashboard/orders', icon: <ShoppingBag className="w-5 h-5" /> },
     { label: 'Customers', path: '/dashboard/customers', icon: <Users className="w-5 h-5" /> },
+    { label: 'Reviews', path: '/dashboard/reviews', icon: <Star className="w-5 h-5" /> },
     ...(showAffiliateBtn ? [{ label: 'Affiliate Program', path: '/affiliate', icon: <Sparkles className="w-5 h-5 text-amber-500" /> }] : []),
     { label: 'Store Settings', path: '/dashboard/settings', icon: <Settings className="w-5 h-5" /> },
     { label: 'Subscription', path: '/dashboard/subscription', icon: <CreditCard className="w-5 h-5" /> },

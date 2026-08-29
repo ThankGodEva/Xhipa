@@ -15,15 +15,19 @@ import {
   CheckCircle2,
   Video,
   Play,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Star,
+  PlusCircle,
+  ThumbsUp
 } from 'lucide-react';
 import { api } from '../../lib/api';
-import { Product, Business, StoreSettings } from '../../types';
-import { formatCurrency } from '../../lib/utils';
+import { Product, Business, StoreSettings, StoreReview, ReviewStats } from '../../types';
+import { formatCurrency, formatDate } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { CartDrawer } from '../../components/storefront/CartDrawer';
 import { WhatsAppOrderModal } from '../../components/storefront/WhatsAppOrderModal';
+import { WriteReviewModal } from '../../components/storefront/WriteReviewModal';
 import { DemoStoreBanner } from '../../components/storefront/DemoStoreBanner';
 import { isDemoStoreSlug } from '../../lib/demoStores';
 import { TikTokPlayer } from '../../components/common/TikTokPlayer';
@@ -35,6 +39,9 @@ export const StorefrontProductDetail: React.FC = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
+  const [reviews, setReviews] = useState<StoreReview[]>([]);
+  const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
+  const [isWriteReviewOpen, setIsWriteReviewOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [activeMediaTab, setActiveMediaTab] = useState<'photos' | 'video'>('photos');
@@ -42,6 +49,7 @@ export const StorefrontProductDetail: React.FC = () => {
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(() => Math.floor(Math.random() * 50) + 24);
+  const [votedMap, setVotedMap] = useState<Record<string, boolean>>({});
 
   const isDemo = isDemoStoreSlug(storeSlug);
 
@@ -58,6 +66,14 @@ export const StorefrontProductDetail: React.FC = () => {
         setProduct(res.product);
         setBusiness(res.business);
         setSettings(res.settings);
+
+        // Fetch reviews
+        api.getStoreReviews(storeSlug, res.product.id)
+          .then(revData => {
+            setReviews(revData.reviews || []);
+            setReviewStats(revData.stats || null);
+          })
+          .catch(() => {});
       })
       .catch(err => {
         console.error('Failed to load product:', err);
@@ -288,6 +304,27 @@ export const StorefrontProductDetail: React.FC = () => {
                   {product.name}
                 </h1>
 
+                {/* Rating Badge */}
+                <div className="flex items-center gap-3 pt-1">
+                  <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100/80">
+                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                    <span className="text-xs font-bold text-slate-900">
+                      {reviewStats?.average_rating ? reviewStats.average_rating.toFixed(1) : '5.0'}
+                    </span>
+                    <span className="text-2xs text-slate-500 font-medium">
+                      ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsWriteReviewOpen(true)}
+                    className="text-xs font-bold text-slate-700 hover:text-slate-900 hover:underline cursor-pointer"
+                  >
+                    Write a Review
+                  </button>
+                </div>
+
                 {/* Price Display */}
                 <div className="flex items-baseline gap-3 pt-1">
                   <span className="text-3xl font-black text-slate-900">
@@ -395,6 +432,145 @@ export const StorefrontProductDetail: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Customer Reviews Section */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-2xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+                <Star className="w-6 h-6 fill-amber-400 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>Customer Reviews</span>
+                  <span className="text-xs font-semibold text-slate-400">
+                    ({reviews.length})
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {reviewStats?.average_rating
+                    ? `Rated ${reviewStats.average_rating.toFixed(1)} out of 5 stars`
+                    : '100% verified shopper experiences'}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => setIsWriteReviewOpen(true)}
+              className="gap-2"
+            >
+              <PlusCircle className="w-4 h-4" />
+              <span>Write a Review</span>
+            </Button>
+          </div>
+
+          {reviews.length === 0 ? (
+            <div className="py-8 text-center text-slate-500 space-y-2">
+              <p className="text-xs">No reviews for this product yet.</p>
+              <p className="text-2xs text-slate-400">Be the first to share your experience!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reviews.map(rev => {
+                const hasVoted = Boolean(votedMap[rev.id]);
+                return (
+                  <div
+                    key={rev.id}
+                    className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 space-y-3 flex flex-col justify-between"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          {rev.customer_avatar ? (
+                            <img
+                              src={rev.customer_avatar}
+                              alt={rev.customer_name}
+                              className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-xs">
+                              {rev.customer_name.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-900">{rev.customer_name}</span>
+                              {rev.is_verified && (
+                                <span className="inline-flex items-center gap-0.5 text-3xs font-semibold text-emerald-700 bg-emerald-100/60 px-1.5 py-0.2 rounded-full">
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                  Verified
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-3xs text-slate-400">
+                              {rev.location && `${rev.location} • `}
+                              {formatDate(rev.created_at)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-0.5 bg-white px-2 py-0.5 rounded-lg border border-amber-100">
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <Star
+                              key={s}
+                              className={`w-3 h-3 ${
+                                s <= rev.rating
+                                  ? 'fill-amber-400 text-amber-400'
+                                  : 'text-slate-200 fill-transparent'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-700 leading-relaxed">
+                        "{rev.comment}"
+                      </p>
+
+                      {rev.photos && rev.photos.length > 0 && (
+                        <div className="flex gap-2 pt-1">
+                          {rev.photos.map((p, idx) => (
+                            <img
+                              key={idx}
+                              src={p}
+                              alt="Review upload"
+                              className="w-16 h-16 rounded-xl object-cover border border-slate-200"
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-3xs text-slate-400">
+                      <span>Verified Buyer</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (votedMap[rev.id]) return;
+                          setVotedMap(prev => ({ ...prev, [rev.id]: true }));
+                          setReviews(prev =>
+                            prev.map(r => (r.id === rev.id ? { ...r, helpful_votes: (r.helpful_votes || 0) + 1 } : r))
+                          );
+                          try {
+                            await api.voteReviewHelpful(storeSlug!, rev.id);
+                          } catch {}
+                        }}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md transition cursor-pointer ${
+                          hasVoted ? 'text-emerald-700 font-bold bg-emerald-50' : 'text-slate-500 hover:bg-slate-200/50'
+                        }`}
+                      >
+                        <ThumbsUp className="w-3 h-3" />
+                        <span>Helpful ({rev.helpful_votes || 0})</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </main>
 
       <CartDrawer storeSlug={storeSlug!} settings={settings} isDemo={isDemo} />
@@ -406,6 +582,16 @@ export const StorefrontProductDetail: React.FC = () => {
         business={business}
         storeSlug={storeSlug!}
         isDemo={isDemo}
+      />
+
+      <WriteReviewModal
+        isOpen={isWriteReviewOpen}
+        onClose={() => setIsWriteReviewOpen(false)}
+        business={business}
+        preselectedProduct={product}
+        onReviewSubmitted={newRev => {
+          setReviews(prev => [newRev, ...prev]);
+        }}
       />
     </div>
   );
