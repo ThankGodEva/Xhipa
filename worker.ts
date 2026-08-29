@@ -33,6 +33,10 @@ export interface R2Bucket {
   delete(keys: string | string[]): Promise<void>;
 }
 
+export interface Fetcher {
+  fetch(input: RequestInfo | URL | string, init?: RequestInit): Promise<Response>;
+}
+
 export interface Env {
   ENVIRONMENT?: string;
   APP_URL?: string;
@@ -43,6 +47,7 @@ export interface Env {
   PAYSTACK_PUBLIC_KEY?: string;
   R2_BUCKET?: R2Bucket;
   R2_PUBLIC_URL?: string;
+  ASSETS?: Fetcher;
 }
 
 export interface ExecutionContext {
@@ -93,7 +98,8 @@ export default {
         timestamp: new Date().toISOString(),
         r2_configured: Boolean(env.R2_BUCKET),
         supabase_configured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
-        paystack_configured: Boolean(env.PAYSTACK_SECRET_KEY)
+        paystack_configured: Boolean(env.PAYSTACK_SECRET_KEY),
+        assets_configured: Boolean(env.ASSETS)
       });
     }
 
@@ -169,12 +175,22 @@ export default {
       }
 
       const userId = authData.user.id;
-      const { data: members } = await supabase
+      const { data: members, error: memberErr } = await supabase
         .from('business_members')
         .select('business_id, role')
         .eq('user_id', userId);
 
-      const businessId = members && members.length > 0 ? members[0].business_id : 'general';
+      if (memberErr || !members || members.length === 0 || !members[0]?.business_id) {
+        return jsonResponse({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Forbidden: Valid tenant business membership required for media upload.'
+          }
+        }, 403);
+      }
+
+      const businessId = members[0].business_id;
 
       const contentType = request.headers.get('content-type') || '';
 
@@ -348,14 +364,31 @@ export default {
       return jsonResponse({ success: true, message: 'Webhook processed' });
     }
 
-    // Default fallback
+    // 7. API 404 Handler - strictly ensures /api/* requests return JSON 404 and never SPA index.html
+    if (url.pathname.startsWith('/api/')) {
+      return jsonResponse({
+        success: false,
+        error: {
+          code: 'NOT_FOUND',
+          message: `Endpoint ${method} ${url.pathname} not found.`
+        }
+      }, 404);
+    }
+
+    // 8. Cloudflare Workers Static Assets & React SPA Fallback
+    // Serves dist/assets/*, static files, and falls back to dist/index.html for SPA routes (e.g. /, /login, /dashboard, /pricing, /store/*)
+    if (env.ASSETS) {
+      return await env.ASSETS.fetch(request);
+    }
+
+    // Fallback if Worker is invoked without ASSETS binding
     return jsonResponse({
       success: false,
       error: {
-        code: 'NOT_FOUND',
-        message: `Endpoint ${method} ${url.pathname} not found or routed to main application bundle.`
+        code: 'ASSETS_NOT_CONFIGURED',
+        message: 'Static asset binding ASSETS is not configured on this Worker instance.'
       }
-    }, 404);
+    }, 503);
   },
 
   /**

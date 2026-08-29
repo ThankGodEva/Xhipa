@@ -60,7 +60,13 @@ router.get('/status', (_req: Request, res: Response) => {
 router.post('/upload', requireAuth, mediaUploadRateLimiter, upload.single('file'), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const membership = await merchantRepository.getMembershipByUserId(req.user!.id);
-    const businessId = membership ? membership.business_id : (req.user!.is_platform_admin ? (req.body.businessId || 'platform') : 'general');
+    if (!membership && !req.user!.is_platform_admin) {
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Forbidden: Valid business membership required for media upload.' }
+      });
+    }
+    const businessId = membership ? membership.business_id : (req.body.businessId || 'platform');
     const folder = (req.body.folder || 'products').toString();
 
     // 1. Handle multipart file upload
@@ -125,7 +131,13 @@ router.post('/upload-multiple', requireAuth, mediaUploadRateLimiter, upload.arra
     }
 
     const membership = await merchantRepository.getMembershipByUserId(req.user!.id);
-    const businessId = membership ? membership.business_id : (req.user!.is_platform_admin ? (req.body.businessId || 'platform') : 'general');
+    if (!membership && !req.user!.is_platform_admin) {
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Forbidden: Valid business membership required for media upload.' }
+      });
+    }
+    const businessId = membership ? membership.business_id : (req.body.businessId || 'platform');
     const folder = (req.body.folder || 'products').toString();
 
     const uploadPromises = files.map(file =>
