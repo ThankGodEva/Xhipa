@@ -496,9 +496,10 @@ export const AdminAffiliatesPage: React.FC = () => {
 
       {/* Process Payout Modal */}
       {isPayoutModalOpen && selectedAffiliate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 space-y-6">
-            <div>
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs">
+          <div className="flex min-h-full items-start sm:items-center justify-center p-3.5 sm:p-6 text-center">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-200 space-y-6 my-auto my-4 sm:my-8 text-left">
+              <div>
               <h3 className="text-lg font-bold text-slate-900">Record & Disburse Payout</h3>
               <p className="text-xs text-slate-500 mt-1">
                 Disburse cleared commissions to Promoter <strong className="font-mono text-blue-600">{selectedAffiliate.affiliate_code}</strong>.
@@ -584,6 +585,7 @@ export const AdminAffiliatesPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

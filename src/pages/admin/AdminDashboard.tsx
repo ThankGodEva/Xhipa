@@ -703,9 +703,10 @@ export const AdminDashboard: React.FC = () => {
 
       {/* Edit Subscription Plan Modal */}
       {editingPlan && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in zoom-in-95 duration-150">
-            <button
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
+          <div className="flex min-h-full items-start sm:items-center justify-center p-3.5 sm:p-6 text-center">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border border-slate-200 relative animate-in fade-in zoom-in-95 duration-150 my-auto my-4 sm:my-8 text-left">
+              <button
               onClick={() => setEditingPlan(null)}
               className="absolute top-5 right-5 p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
             >
@@ -806,6 +807,7 @@ export const AdminDashboard: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

@@ -1,7 +1,23 @@
 import { Router, Request, Response } from 'express';
 import { getSupabaseAdmin, isSupabaseConfigured } from '../lib/supabase';
+import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
+
+/**
+ * GET /api/auth/me
+ * Authoritatively fetch current user's profile from database including is_platform_admin
+ */
+router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+  }
+
+  return res.json({
+    success: true,
+    user: req.user
+  });
+});
 
 const isUUID = (val?: string | null): boolean => {
   if (!val || typeof val !== 'string') return false;

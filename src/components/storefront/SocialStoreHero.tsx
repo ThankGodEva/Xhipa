@@ -136,7 +136,7 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
             )}
 
             {/* Profile Header on mobile */}
-            <div className="md:hidden pb-1 min-w-0">
+            <div className="md:hidden pb-1 min-w-0 mt-3 sm:mt-0 pt-2 sm:pt-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h1 className="text-xl font-extrabold text-slate-900 leading-tight truncate">
                   {business.name}

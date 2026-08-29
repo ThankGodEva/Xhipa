@@ -41,35 +41,42 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
     >
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand & Logo */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 pr-2">
           {settings.show_logo && resolvedLogo && !imgError ? (
             <img
               src={resolvedLogo}
               alt={business.name}
               onError={() => setImgError(true)}
-              className="w-10 h-10 rounded-full object-cover border-2 border-white/50 shadow-xs"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-white/50 shadow-xs shrink-0"
             />
           ) : (
             <div
               style={{ color: themeColor }}
-              className="w-10 h-10 rounded-full flex items-center justify-center bg-white font-bold text-base shadow-xs"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center bg-white font-bold text-sm sm:text-base shadow-xs shrink-0"
             >
               {business.name.charAt(0)}
             </div>
           )}
-          <div>
-            <div className="flex items-center gap-1">
-              <h1 className="text-sm sm:text-base font-extrabold text-white leading-tight truncate max-w-[170px] sm:max-w-xs">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1 min-w-0">
+              <h1 className="text-xs sm:text-base font-extrabold text-white leading-snug truncate">
                 {business.name}
               </h1>
               <CheckCircle2 className="w-3.5 h-3.5 text-white fill-white/20 shrink-0" />
             </div>
-            <div className="flex items-center gap-2 text-3xs sm:text-2xs text-white/80 font-medium">
-              <span className="flex items-center gap-1 text-white font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <div className="flex items-center gap-1.5 text-3xs sm:text-2xs text-white/85 font-medium whitespace-nowrap min-w-0 overflow-hidden mt-0.5">
+              <span className="inline-flex items-center gap-1 text-white font-semibold shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse shrink-0" />
                 Online Store
               </span>
-              {business.city && <span className="text-white/80">• {business.city}, {business.state || 'NG'}</span>}
+              {business.city && (
+                <>
+                  <span className="text-white/40 shrink-0">•</span>
+                  <span className="text-white/80 truncate">
+                    {business.city}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
