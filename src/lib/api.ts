@@ -94,6 +94,87 @@ export const api = {
     return { isVerified: false };
   },
 
+  async checkEmailExists(email: string): Promise<{ exists: boolean; message?: string }> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      return { exists: false };
+    }
+    try {
+      const res = await fetch(`${API_BASE}/auth/check-email-exists`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail })
+      });
+      const data = await safeParseJson(res, 'Email check failed');
+      if (res.ok && data.success) {
+        return { exists: Boolean(data.exists), message: data.message };
+      }
+      return { exists: false };
+    } catch (err: any) {
+      console.warn('Backend checkEmailExists failed:', err);
+      return { exists: false };
+    }
+  },
+
+  async sendResetOtp(email: string): Promise<{ success: boolean; message: string; sentViaSupabase?: boolean; devOtp?: string }> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail })
+    });
+    const data = await safeParseJson(res, 'Failed to send password reset code');
+    if (!res.ok || !data.success) {
+      throw new Error(data.error?.message || 'Failed to send password reset code');
+    }
+    return data;
+  },
+
+  async verifyResetOtp(email: string, otp: string): Promise<{ success: boolean; resetToken?: string }> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const res = await fetch(`${API_BASE}/auth/verify-reset-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, otp: otp.trim() })
+    });
+    const data = await safeParseJson(res, 'Invalid OTP code');
+    if (!res.ok || !data.success) {
+      throw new Error(data.error?.message || 'Invalid or expired OTP code');
+    }
+    return data;
+  },
+
+  async resetPassword(email: string, newPassword: string, resetToken?: string, otp?: string): Promise<{ success: boolean; message: string }> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const res = await fetch(`${API_BASE}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, newPassword, resetToken, otp })
+    });
+    const data = await safeParseJson(res, 'Failed to reset password');
+    if (!res.ok || !data.success) {
+      throw new Error(data.error?.message || 'Failed to reset password');
+    }
+    return data;
+  },
+
+  async checkSlugAvailability(slug: string): Promise<{ available: boolean; reason?: string; slug: string }> {
+    const cleanSlug = (slug || '').toLowerCase().trim();
+    if (!cleanSlug) {
+      return { available: false, reason: 'Storefront link cannot be empty', slug: '' };
+    }
+    try {
+      const res = await fetch(`${API_BASE}/storefront/check-slug/${encodeURIComponent(cleanSlug)}`);
+      const data = await safeParseJson(res, 'Failed to check link availability');
+      if (res.ok && data.success && data.data) {
+        return data.data;
+      }
+      return { available: false, reason: data.error?.message || 'Link is unavailable', slug: cleanSlug };
+    } catch (err: any) {
+      return { available: false, reason: err.message || 'Failed to check link', slug: cleanSlug };
+    }
+  },
+
   // Public Storefront
   async getStorefront(slug: string): Promise<PublicStorefrontData> {
     const cleanSlug = slug?.toLowerCase().trim();

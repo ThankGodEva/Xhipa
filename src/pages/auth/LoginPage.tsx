@@ -4,12 +4,14 @@ import { Store, ArrowRight, ArrowLeft, Lock, Mail, ShieldCheck, CheckCircle2 } f
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { ForgotPasswordModal } from '../../components/auth/ForgotPasswordModal';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifiedNotice, setIsVerifiedNotice] = useState(false);
+  const [showForgotModal, setShowForgotModal] = useState(false);
   const { login, user } = useAuth();
   const { success, error } = useToast();
   const navigate = useNavigate();
@@ -115,7 +117,16 @@ export const LoginPage: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Password</label>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(true)}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="relative">
                 <input
                   type="password"
@@ -149,6 +160,17 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Forgot Password Modal with Supabase OTP */}
+      <ForgotPasswordModal
+        isOpen={showForgotModal}
+        initialEmail={email}
+        onClose={() => setShowForgotModal(false)}
+        onSuccess={(resetEmail) => {
+          setEmail(resetEmail);
+          setPassword('');
+        }}
+      />
     </div>
   );
 };

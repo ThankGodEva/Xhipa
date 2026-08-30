@@ -1,6 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Store, ArrowRight, ArrowLeft, CheckCircle2, Sparkles, MessageCircle, CreditCard } from 'lucide-react';
+import {
+  Store,
+  ArrowRight,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  MessageCircle,
+  CreditCard
+} from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { slugify, isReservedSlug } from '../../lib/utils';
 import { api } from '../../lib/api';
@@ -9,11 +20,15 @@ import { getAttributedReferralCode, clearAttributedReferralCode } from '../../li
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
+type SlugStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
+
 export const OnboardingWizard: React.FC = () => {
   const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [businessName, setBusinessName] = useState('');
   const [slug, setSlug] = useState('');
+  const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
+  const [slugFeedback, setSlugFeedback] = useState<string>('');
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [mode, setMode] = useState<'catalogue' | 'checkout'>('checkout');
@@ -40,6 +55,86 @@ export const OnboardingWizard: React.FC = () => {
     }
   };
 
+  // Real-time database check for storefront link availability
+  useEffect(() => {
+    const cleanSlug = slug.trim().toLowerCase();
+
+    if (!cleanSlug) {
+      setSlugStatus('idle');
+      setSlugFeedback('');
+      return;
+    }
+
+    if (cleanSlug.length < 2) {
+      setSlugStatus('invalid');
+      setSlugFeedback('Storefront link must be at least 2 characters.');
+      return;
+    }
+
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
+      setSlugStatus('invalid');
+      setSlugFeedback('Storefront link can only contain lowercase letters, numbers, and hyphens.');
+      return;
+    }
+
+    if (isReservedSlug(cleanSlug)) {
+      setSlugStatus('taken');
+      setSlugFeedback(`The link "${cleanSlug}" is reserved by the system. Please pick another storefront link.`);
+      return;
+    }
+
+    setSlugStatus('checking');
+    setSlugFeedback('Checking database...');
+
+    let isMounted = true;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.checkSlugAvailability(cleanSlug);
+        if (!isMounted) return;
+
+        if (result.available) {
+          setSlugStatus('available');
+          setSlugFeedback(`xhipa.com/${cleanSlug} is available!`);
+        } else {
+          setSlugStatus('taken');
+          setSlugFeedback(result.reason || `Storefront link "xhipa.com/${cleanSlug}" already exists. Please choose a different link.`);
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        setSlugStatus('taken');
+        setSlugFeedback('Storefront link already exists or is unavailable. Please try a different name.');
+      }
+    }, 280);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [slug]);
+
+  const isSlugAvailable = slugStatus === 'available';
+  const isCheckingSlug = slugStatus === 'checking';
+  const isFormValid = Boolean(businessName.trim() && slug.trim() && phone.trim() && isSlugAvailable && !isCheckingSlug);
+
+  const handleNextStep = () => {
+    if (!businessName.trim() || !slug.trim() || !phone.trim()) {
+      error('Please enter your business name, storefront link, and phone number.');
+      return;
+    }
+
+    if (isCheckingSlug) {
+      error('Please wait while we search the database for link availability...');
+      return;
+    }
+
+    if (slugStatus === 'taken' || slugStatus === 'invalid' || !isSlugAvailable) {
+      error(slugFeedback || 'This storefront link already exists. Please choose a different link.');
+      return;
+    }
+
+    setStep(2);
+  };
+
   const handleFinish = async () => {
     if (!businessName || !slug || !phone) {
       error('Please complete all required fields.');
@@ -48,6 +143,11 @@ export const OnboardingWizard: React.FC = () => {
 
     if (isReservedSlug(slug)) {
       error(`The link "${slug}" is reserved for system use. Please choose another store link.`);
+      return;
+    }
+
+    if (!isSlugAvailable) {
+      error('Please pick an available storefront link before publishing.');
       return;
     }
 
@@ -142,20 +242,88 @@ export const OnboardingWizard: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Storefront Link (Slug) *</label>
-                  <div className="flex rounded-xl shadow-2xs">
-                    <span className="inline-flex items-center px-3 rounded-l-xl border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-xs font-mono">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">Storefront Link (Slug) *</label>
+                    {isCheckingSlug && (
+                      <span className="inline-flex items-center gap-1 text-2xs text-blue-600 font-medium">
+                        <Loader2 className="w-3 h-3 animate-spin shrink-0" />
+                        Searching database...
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`flex rounded-xl transition-all duration-150 border ${
+                      slugStatus === 'available'
+                        ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10'
+                        : slugStatus === 'taken' || slugStatus === 'invalid'
+                        ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10'
+                        : slugStatus === 'checking'
+                        ? 'border-blue-400 ring-2 ring-blue-500/15'
+                        : 'border-slate-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500'
+                    }`}
+                  >
+                    <span
+                      className={`inline-flex items-center px-3.5 rounded-l-xl text-xs font-mono border-r transition-colors ${
+                        slugStatus === 'available'
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold'
+                          : slugStatus === 'taken' || slugStatus === 'invalid'
+                          ? 'border-rose-500 bg-rose-50 text-rose-800 font-semibold'
+                          : 'border-slate-200 bg-slate-50 text-slate-500'
+                      }`}
+                    >
                       xhipa.com/
                     </span>
-                    <input
-                      type="text"
-                      required
-                      placeholder="zuri-bakes"
-                      value={slug}
-                      onChange={e => setSlug(slugify(e.target.value))}
-                      className="flex-1 min-w-0 block w-full px-3.5 py-2.5 rounded-none rounded-r-xl text-sm border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                    />
+                    <div className="relative flex-1 flex items-center">
+                      <input
+                        type="text"
+                        required
+                        placeholder="zuri-bakes"
+                        value={slug}
+                        onChange={e => setSlug(slugify(e.target.value))}
+                        className={`block w-full px-3.5 py-2.5 rounded-r-xl text-sm focus:outline-none font-mono bg-transparent ${
+                          slugStatus === 'available'
+                            ? 'text-emerald-950 font-medium'
+                            : slugStatus === 'taken' || slugStatus === 'invalid'
+                            ? 'text-rose-950 font-medium'
+                            : 'text-slate-900'
+                        }`}
+                      />
+                      <div className="absolute right-3 pointer-events-none">
+                        {slugStatus === 'checking' && (
+                          <Loader2 className="w-4 h-4 text-blue-500 animate-spin" />
+                        )}
+                        {slugStatus === 'available' && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                        {(slugStatus === 'taken' || slugStatus === 'invalid') && (
+                          <XCircle className="w-4 h-4 text-rose-600" />
+                        )}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Real-time Validation Status Notifications */}
+                  {slugStatus === 'available' && (
+                    <div className="flex items-center gap-1.5 mt-2 text-xs text-emerald-700 font-medium">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        Storefront link is available: <strong className="font-mono text-emerald-800 font-semibold">xhipa.com/{slug}</strong>
+                      </span>
+                    </div>
+                  )}
+
+                  {(slugStatus === 'taken' || slugStatus === 'invalid') && (
+                    <div className="flex items-start gap-2 mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 font-medium">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <p className="font-bold text-rose-900">
+                          {slugStatus === 'taken' ? 'Link Already Exists' : 'Invalid Storefront Link'}
+                        </p>
+                        <p className="text-rose-700 leading-snug">{slugFeedback}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -182,21 +350,25 @@ export const OnboardingWizard: React.FC = () => {
                 </div>
               </div>
 
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full"
-                rightIcon={<ArrowRight className="w-4 h-4" />}
-                onClick={() => {
-                  if (!businessName || !slug || !phone) {
-                    error('Please enter your business name, store slug, and phone number.');
-                    return;
-                  }
-                  setStep(2);
-                }}
-              >
-                Next: Choose Store Mode
-              </Button>
+              <div className="pt-2">
+                <Button
+                  variant="primary"
+                  size="lg"
+                  className="w-full"
+                  disabled={!isFormValid}
+                  rightIcon={<ArrowRight className="w-4 h-4" />}
+                  onClick={handleNextStep}
+                >
+                  {isCheckingSlug ? 'Verifying Store Link...' : 'Next: Choose Store Mode'}
+                </Button>
+                {!isSlugAvailable && slug.trim().length > 0 && !isCheckingSlug && (
+                  <p className="text-2xs text-center text-rose-600 mt-2 font-medium">
+                    {slugStatus === 'taken'
+                      ? '⚠️ Next button disabled: This storefront link already exists in the database.'
+                      : '⚠️ Next button disabled: Please provide a valid, unique storefront link.'}
+                  </p>
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-6">

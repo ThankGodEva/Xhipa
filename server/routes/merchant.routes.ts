@@ -264,6 +264,16 @@ router.post('/onboard', async (req: AuthenticatedRequest, res: Response) => {
     const resolvedPhone = phone || business.phone;
     const resolvedWhatsapp = whatsapp || whatsapp_number || resolvedPhone || business.whatsapp_number;
 
+    if (resolvedSlug) {
+      const slugCheck = await merchantRepository.checkSlugAvailability(resolvedSlug, membership.business_id);
+      if (!slugCheck.available) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'SLUG_UNAVAILABLE', message: slugCheck.reason || 'This storefront link is already taken.' }
+        });
+      }
+    }
+
     const [updatedBiz, updatedStore, updatedSettings] = await Promise.all([
       merchantRepository.updateBusiness(membership.business_id, {
         name: resolvedName,

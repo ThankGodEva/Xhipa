@@ -2,8 +2,29 @@ import { Router, Request, Response } from 'express';
 import { storeService } from '../services/store.service';
 import { reviewRepository } from '../repositories/review.repository';
 import { orderRepository } from '../repositories/order.repository';
+import { merchantRepository } from '../repositories/merchant.repository';
 
 const router = Router();
+
+/**
+ * GET /api/storefront/check-slug/:slug
+ * Real-time database and system search to verify if a storefront link is available
+ */
+router.get('/check-slug/:slug', async (req: Request, res: Response) => {
+  try {
+    const { slug } = req.params;
+    const result = await merchantRepository.checkSlugAvailability(slug);
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { code: 'SLUG_CHECK_FAILED', message: error.message || 'Failed to check link availability.' }
+    });
+  }
+});
 
 /**
  * GET /api/storefront/:slug

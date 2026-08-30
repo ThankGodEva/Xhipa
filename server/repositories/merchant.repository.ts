@@ -2,6 +2,8 @@ import { getRequiredSupabase } from '../lib/supabase';
 import { normalizeDatabaseError } from '../lib/errors';
 import { Business, BusinessMember, Store, StoreSettings } from '../../src/types';
 import { getBusinessMetadata, setBusinessMetadata } from '../lib/metadataStore';
+import { isReservedSlug } from '../../src/lib/utils';
+import { DEMO_STORES_MAP } from '../../src/lib/demoStores';
 
 const isUUID = (val?: string | null): boolean => {
   if (!val || typeof val !== 'string') return false;
@@ -152,6 +154,83 @@ export class MerchantRepository {
         biz.banner_url = meta.banner_url;
       }
       return biz;
+    } catch (err) {
+      throw normalizeDatabaseError(err);
+    }
+  }
+
+  /**
+   * Check if a storefront slug is available in real-time across database and system registries
+   */
+  async checkSlugAvailability(slug: string, excludeBusinessId?: string): Promise<{ available: boolean; reason?: string; slug: string }> {
+    const cleanSlug = (slug || '').toLowerCase().trim();
+
+    if (!cleanSlug) {
+      return { available: false, reason: 'Storefront link cannot be empty', slug: '' };
+    }
+
+    if (cleanSlug.length < 2) {
+      return { available: false, reason: 'Storefront link must be at least 2 characters', slug: cleanSlug };
+    }
+
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
+      return { available: false, reason: 'Storefront link can only contain lowercase letters, numbers, and hyphens', slug: cleanSlug };
+    }
+
+    if (isReservedSlug(cleanSlug)) {
+      return { available: false, reason: `"${cleanSlug}" is reserved by the system and cannot be used.`, slug: cleanSlug };
+    }
+
+    if (DEMO_STORES_MAP[cleanSlug]) {
+      return { available: false, reason: `Storefront link "xhipa.com/${cleanSlug}" is already taken.`, slug: cleanSlug };
+    }
+
+    const supabase = getRequiredSupabase();
+
+    try {
+      // 1. Check in businesses table
+      let bizQuery = supabase
+        .from('businesses')
+        .select('id, slug')
+        .eq('slug', cleanSlug);
+
+      if (excludeBusinessId) {
+        bizQuery = bizQuery.neq('id', excludeBusinessId);
+      }
+
+      const { data: bizData, error: bizErr } = await bizQuery;
+      if (bizErr) throw bizErr;
+
+      if (bizData && bizData.length > 0) {
+        return {
+          available: false,
+          reason: `Storefront link "xhipa.com/${cleanSlug}" is already taken. Please choose another link.`,
+          slug: cleanSlug
+        };
+      }
+
+      // 2. Check in stores table
+      let storeQuery = supabase
+        .from('stores')
+        .select('id, business_id, slug')
+        .eq('slug', cleanSlug);
+
+      if (excludeBusinessId) {
+        storeQuery = storeQuery.neq('business_id', excludeBusinessId);
+      }
+
+      const { data: storeData, error: storeErr } = await storeQuery;
+      if (storeErr) throw storeErr;
+
+      if (storeData && storeData.length > 0) {
+        return {
+          available: false,
+          reason: `Storefront link "xhipa.com/${cleanSlug}" is already taken. Please choose another link.`,
+          slug: cleanSlug
+        };
+      }
+
+      return { available: true, slug: cleanSlug };
     } catch (err) {
       throw normalizeDatabaseError(err);
     }
