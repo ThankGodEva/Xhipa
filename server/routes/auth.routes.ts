@@ -274,8 +274,9 @@ router.post('/reset-password', async (req: Request, res: Response) => {
  */
 router.post('/check-email-status', async (req: Request, res: Response) => {
   const { email, userId } = req.body;
+  const cleanEmail = (email || '').trim().toLowerCase();
 
-  if (!email && !userId) {
+  if (!cleanEmail && !userId) {
     return res.status(400).json({ success: false, error: { message: 'email or userId is required' } });
   }
 
@@ -291,6 +292,7 @@ router.post('/check-email-status', async (req: Request, res: Response) => {
   try {
     let isVerified = false;
     let emailConfirmedAt: string | null = null;
+    let resolvedUserId = userId;
 
     // 1. Try checking with Supabase Admin API by userId if available and valid UUID
     if (userId && isUUID(userId) && supabase.auth?.admin) {
@@ -305,13 +307,14 @@ router.post('/check-email-status', async (req: Request, res: Response) => {
       }
     }
 
-    // 2. If not verified yet or userId wasn't found, try looking up by email in Supabase admin
-    if (!isVerified && email && supabase.auth?.admin) {
+    // 2. If not verified yet or userId wasn't found, check by email in Supabase auth admin
+    if (!isVerified && cleanEmail && supabase.auth?.admin) {
       try {
         const { data, error } = await supabase.auth.admin.listUsers();
         if (!error && data?.users) {
-          const match = (data.users as any[]).find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+          const match = (data.users as any[]).find((u: any) => u.email?.toLowerCase() === cleanEmail);
           if (match) {
+            resolvedUserId = match.id;
             isVerified = Boolean(match.email_confirmed_at || match.confirmed_at);
             emailConfirmedAt = match.email_confirmed_at || null;
           }
@@ -321,21 +324,38 @@ router.post('/check-email-status', async (req: Request, res: Response) => {
       }
     }
 
-    // 3. Check public.profiles table as well (only if userId is valid UUID)
-    if (!isVerified && userId && isUUID(userId)) {
+    // 3. Check public.profiles table by userId or email
+    if (!isVerified) {
       try {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
+        let query = supabase.from('profiles').select('*');
+        if (resolvedUserId && isUUID(resolvedUserId)) {
+          query = query.eq('id', resolvedUserId);
+        } else if (cleanEmail) {
+          query = query.ilike('email', cleanEmail);
+        }
 
-        if (profile?.email_confirmed_at) {
+        const { data: profile } = await query.maybeSingle();
+        if (profile?.email_confirmed_at || profile?.is_email_verified) {
           isVerified = true;
-          emailConfirmedAt = profile.email_confirmed_at;
+          emailConfirmedAt = profile.email_confirmed_at || new Date().toISOString();
         }
       } catch (pErr) {
         console.warn('[Auth Route] Profile check error:', pErr);
+      }
+    }
+
+    // 4. If verified, keep profiles table in sync
+    if (isVerified && (resolvedUserId && isUUID(resolvedUserId))) {
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            is_email_verified: true,
+            email_confirmed_at: emailConfirmedAt || new Date().toISOString()
+          })
+          .eq('id', resolvedUserId);
+      } catch (syncErr) {
+        // silent
       }
     }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, CheckCircle2, ArrowRight, RefreshCw, LogOut } from 'lucide-react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Mail, CheckCircle2, ArrowRight, RefreshCw, LogOut, ShieldCheck } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -9,17 +9,50 @@ export const VerifyEmailPage: React.FC = () => {
   const { user, logout, resendVerificationEmail, checkEmailVerification } = useAuth();
   const { success, error, info } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [isChecking, setIsChecking] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
-  // If user is already email verified, redirect to login with verified flag
+  // Resolve display email
+  const displayEmail = (
+    user?.email ||
+    searchParams.get('email') ||
+    localStorage.getItem('storefront_pending_email') ||
+    ''
+  ).trim().toLowerCase();
+
+  // If user is already email verified, redirect to dashboard or login
   useEffect(() => {
     if (user?.is_email_verified) {
-      navigate('/login?verified=true');
+      navigate('/dashboard/products', { replace: true });
     }
   }, [user?.is_email_verified, navigate]);
+
+  // Auto check verification on mount if email exists
+  useEffect(() => {
+    let isMounted = true;
+    const runAutoCheck = async () => {
+      if (!displayEmail && !user?.id) return;
+      try {
+        const isVerified = await checkEmailVerification(displayEmail);
+        if (isVerified && isMounted) {
+          success('🎉 Email verified! Redirecting to your dashboard...');
+          setTimeout(() => {
+            navigate('/dashboard/products', { replace: true });
+          }, 800);
+        }
+      } catch (e) {
+        // silent check
+      }
+    };
+
+    runAutoCheck();
+    return () => {
+      isMounted = false;
+    };
+  }, [displayEmail, checkEmailVerification, navigate, success]);
 
   // Handle countdown for resend button
   useEffect(() => {
@@ -32,12 +65,12 @@ export const VerifyEmailPage: React.FC = () => {
   const handleCheckStatus = async () => {
     setIsChecking(true);
     try {
-      const isVerified = await checkEmailVerification();
+      const isVerified = await checkEmailVerification(displayEmail);
       if (isVerified) {
-        success('🎉 Email verified successfully! Please sign in to access your dashboard.');
-        setTimeout(() => navigate('/login?verified=true'), 1000);
+        success('🎉 Email verified successfully! Opening your merchant dashboard...');
+        setTimeout(() => navigate('/dashboard/products', { replace: true }), 900);
       } else {
-        info('Email not yet verified. Please click the link in your inbox.');
+        info('Email not yet confirmed. Please check your inbox or click Resend Verification Email.');
       }
     } catch (err: any) {
       error(err?.message || 'Could not verify status. Please try again.');
@@ -50,11 +83,11 @@ export const VerifyEmailPage: React.FC = () => {
     if (resendCooldown > 0) return;
     setIsResending(true);
     try {
-      await resendVerificationEmail(user?.email);
-      success(`Verification link re-sent to ${user?.email || 'your email'}`);
+      await resendVerificationEmail(displayEmail || user?.email);
+      success(`Verification email sent to ${displayEmail || user?.email || 'your email'}`);
       setResendCooldown(60);
     } catch (err: any) {
-      error(err?.message || 'Failed to resend verification link');
+      error(err?.message || 'Failed to resend verification email');
     } finally {
       setIsResending(false);
     }
@@ -88,7 +121,7 @@ export const VerifyEmailPage: React.FC = () => {
           {/* Email Address Highlight Card */}
           <div className="my-4 py-2.5 px-4 bg-slate-100/80 rounded-xl border border-slate-200 inline-flex items-center gap-2 text-sm font-semibold text-slate-800 max-w-full truncate">
             <Mail className="w-4 h-4 text-blue-600 shrink-0" />
-            <span className="truncate">{user?.email || 'your-email@example.com'}</span>
+            <span className="truncate">{displayEmail || 'your-email@example.com'}</span>
           </div>
 
           <div className="text-left bg-blue-50/60 border border-blue-200/70 rounded-2xl p-4 my-5 space-y-2.5 text-xs text-slate-700">

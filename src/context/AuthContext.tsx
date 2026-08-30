@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('storefront_auth_token', accessToken);
         }
 
-        const isVerified = Boolean(sessionUser.email_confirmed_at || (sessionUser as any).confirmed_at);
+        let isVerified = Boolean(sessionUser.email_confirmed_at || (sessionUser as any).confirmed_at);
         let isAdmin = Boolean(sessionUser.user_metadata?.is_platform_admin);
 
         // Fetch authoritative database profile from server
@@ -120,8 +120,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (authData?.user?.is_platform_admin !== undefined) {
             isAdmin = Boolean(authData.user.is_platform_admin);
           }
+          if (authData?.user?.is_email_verified) {
+            isVerified = true;
+          }
         } catch (e) {
           console.warn('Could not load authoritative user profile:', e);
+        }
+
+        // If still not verified, verify with backend check-email-status
+        if (!isVerified && sessionUser.email) {
+          try {
+            const statusCheck = await api.checkEmailStatus(sessionUser.email, sessionUser.id);
+            if (statusCheck?.isVerified) {
+              isVerified = true;
+            }
+          } catch (e) {
+            // silent
+          }
         }
 
         const profile: UserProfile = {
@@ -130,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           full_name: sessionUser.user_metadata?.full_name || 'Merchant User',
           is_platform_admin: isAdmin,
           is_email_verified: isVerified,
-          email_confirmed_at: sessionUser.email_confirmed_at || null,
+          email_confirmed_at: sessionUser.email_confirmed_at || (isVerified ? new Date().toISOString() : null),
           created_at: sessionUser.created_at,
           updated_at: sessionUser.updated_at || sessionUser.created_at
         };
@@ -188,13 +203,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         if (data?.session) {
           localStorage.setItem('storefront_auth_token', data.session.access_token);
-          const isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
+          let isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
           let isAdmin = Boolean(data.user.user_metadata?.is_platform_admin);
+
+          // If session doesn't show confirmed yet, query backend authoritative status
+          if (!isVerified) {
+            try {
+              const statusCheck = await api.checkEmailStatus(normalizedEmail, data.user.id);
+              if (statusCheck?.isVerified) {
+                isVerified = true;
+              }
+            } catch (e) {
+              console.warn('Backend email status check on login:', e);
+            }
+          }
 
           try {
             const authData = await api.getCurrentUser();
             if (authData?.user?.is_platform_admin !== undefined) {
               isAdmin = Boolean(authData.user.is_platform_admin);
+            }
+            if (authData?.user?.is_email_verified) {
+              isVerified = true;
             }
           } catch (e) {
             console.warn('Could not load authoritative user profile on login:', e);
@@ -206,7 +236,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             full_name: data.user.user_metadata?.full_name || 'Merchant User',
             is_platform_admin: isAdmin,
             is_email_verified: isVerified,
-            email_confirmed_at: data.user.email_confirmed_at || null,
+            email_confirmed_at: data.user.email_confirmed_at || (isVerified ? new Date().toISOString() : null),
             created_at: data.user.created_at,
             updated_at: data.user.updated_at || data.user.created_at
           };
@@ -332,7 +362,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const checkEmailVerification = async (): Promise<boolean> => {
+  const checkEmailVerification = async (overrideEmail?: string): Promise<boolean> => {
+    const targetEmail = (overrideEmail || user?.email || localStorage.getItem('storefront_pending_email') || '').trim().toLowerCase();
+
     if (isSupabaseConfigured) {
       try {
         // 1. Try refreshing session in Supabase client
@@ -341,10 +373,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (supaUser) {
           const isVerified = Boolean(supaUser.email_confirmed_at || (supaUser as any).confirmed_at);
           if (isVerified) {
-            const updated = {
+            const updated: UserProfile = {
               ...(user || {
                 id: supaUser.id,
-                email: supaUser.email || '',
+                email: supaUser.email || targetEmail,
                 full_name: supaUser.user_metadata?.full_name || 'Merchant User',
                 is_platform_admin: false,
                 created_at: supaUser.created_at,
@@ -363,27 +395,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // 2. Authoritatively query the backend verification check endpoint
-      try {
-        const status = await api.checkEmailStatus(user?.email, user?.id);
-        if (status?.isVerified) {
-          const updated = {
-            ...(user || {
-              id: user?.id || `usr_${Date.now()}`,
-              email: user?.email || '',
-              full_name: user?.full_name || 'Merchant User',
-              is_platform_admin: false,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }),
-            is_email_verified: true,
-            email_confirmed_at: status.emailConfirmedAt || new Date().toISOString()
-          };
-          setUser(updated);
-          saveStoredLocalUser({ profile: updated });
-          return true;
+      if (targetEmail || user?.id) {
+        try {
+          const status = await api.checkEmailStatus(targetEmail, user?.id);
+          if (status?.isVerified) {
+            const updated: UserProfile = {
+              ...(user || {
+                id: user?.id || `usr_${Date.now()}`,
+                email: targetEmail || user?.email || '',
+                full_name: user?.full_name || 'Merchant User',
+                is_platform_admin: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }),
+              is_email_verified: true,
+              email_confirmed_at: status.emailConfirmedAt || new Date().toISOString()
+            };
+            setUser(updated);
+            saveStoredLocalUser({ profile: updated });
+            return true;
+          }
+        } catch (e) {
+          console.warn('Backend email status check warning:', e);
         }
-      } catch (e) {
-        console.warn('Backend email status check warning:', e);
       }
     }
 
