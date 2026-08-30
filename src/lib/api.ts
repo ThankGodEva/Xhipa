@@ -63,6 +63,20 @@ async function safeParseJson<T = any>(res: Response, fallbackError = 'Request fa
 
 export const api = {
   // Authentication & Verification
+  async getCurrentUser(): Promise<{ user: any } | null> {
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, {
+        headers: getAuthHeader()
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.success && data.user ? { user: data.user } : null;
+    } catch (e) {
+      console.warn('getCurrentUser failed:', e);
+      return null;
+    }
+  },
+
   async checkEmailStatus(email?: string, userId?: string): Promise<{ isVerified: boolean; emailConfirmedAt?: string | null }> {
     try {
       const res = await fetch(`${API_BASE}/auth/check-email-status`, {
@@ -403,6 +417,24 @@ export const api = {
     });
     const data = await safeParseJson(res, 'Failed to create category');
     return data.data;
+  },
+
+  async updateCategory(id: string, payload: { name?: string; description?: string; is_active?: boolean }): Promise<Category> {
+    const res = await fetch(`${API_BASE}/merchant/categories/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeader(),
+      body: JSON.stringify(payload)
+    });
+    const data = await safeParseJson(res, 'Failed to update category');
+    return data.data;
+  },
+
+  async deleteCategory(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/merchant/categories/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    await safeParseJson(res, 'Failed to delete category');
   },
 
   async getMerchantOrders(): Promise<Order[] & { orders: Order[] }> {

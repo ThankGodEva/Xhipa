@@ -21,7 +21,8 @@ import {
   Sliders,
   Check,
   X,
-  AlertCircle
+  AlertCircle,
+  Copy
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatCurrency, formatDate } from '../../lib/utils';
@@ -51,10 +52,21 @@ export const AdminDashboard: React.FC = () => {
   const [editIsActive, setEditIsActive] = useState<boolean>(true);
   const [isSavingPlan, setIsSavingPlan] = useState<boolean>(false);
   const [isTogglingAffiliate, setIsTogglingAffiliate] = useState<boolean>(false);
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
   const { user, isLoading: authLoading } = useAuth();
   const { success, error } = useToast();
   const navigate = useNavigate();
+
+  const handleCopyStoreLink = (slug: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const url = `${window.location.origin}/store/${slug}`;
+    navigator.clipboard.writeText(url);
+    setCopiedSlug(slug);
+    success('Storefront link copied to clipboard!');
+    setTimeout(() => setCopiedSlug(null), 2000);
+  };
 
   useEffect(() => {
     if (!authLoading) {
@@ -170,11 +182,13 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
-  const filtered = businesses.filter(b =>
-    b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.store?.slug?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    b.owner?.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = businesses.filter(b => {
+    const q = searchQuery.toLowerCase();
+    const slug = (b.storeSlug || b.store?.slug || b.slug || '').toLowerCase();
+    const ownerEmail = (b.ownerEmail || b.owner?.email || b.email || '').toLowerCase();
+    const name = (b.name || '').toLowerCase();
+    return name.includes(q) || slug.includes(q) || ownerEmail.includes(q);
+  });
 
   return (
     <div className="min-h-screen bg-slate-100 pb-16 font-sans">
@@ -424,55 +438,81 @@ export const AdminDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filtered.map(biz => (
-                    <tr key={biz.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {biz.name}
-                      </td>
+                  {filtered.map(biz => {
+                    const slug = biz.storeSlug || biz.store?.slug || biz.slug || (biz.name ? biz.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : biz.id);
+                    const ownerEmail = biz.ownerEmail || biz.owner?.email || biz.email || '—';
+                    const planName = biz.plan || biz.subscription?.plan?.name || 'Starter';
+                    const count = biz.productsCount ?? biz.productCount ?? 0;
+                    const storePath = `/store/${slug}`;
 
-                      <td className="py-3 px-4">
-                        <a
-                          href={`/${biz.store?.slug}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 font-mono text-emerald-600 hover:underline"
-                        >
-                          <span>/{biz.store?.slug}</span>
-                          <ExternalLink className="w-3 h-3 text-slate-400" />
-                        </a>
-                      </td>
+                    return (
+                      <tr key={biz.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900">{biz.name}</div>
+                          {biz.description && (
+                            <div className="text-2xs text-slate-400 truncate max-w-xs">{biz.description}</div>
+                          )}
+                        </td>
 
-                      <td className="py-3 px-4 text-slate-500">
-                        {biz.owner?.email || '—'}
-                      </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <a
+                              href={storePath}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 font-mono text-xs text-emerald-600 hover:text-emerald-700 font-medium bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/60 px-2 py-1 rounded-md transition"
+                              title="Open Storefront in new tab"
+                            >
+                              <span>/store/{slug}</span>
+                              <ExternalLink className="w-3 h-3 text-emerald-500 shrink-0" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyStoreLink(slug, e)}
+                              className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition"
+                              title="Copy storefront link"
+                            >
+                              {copiedSlug === slug ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <Badge variant="purple" size="sm">
-                          {biz.subscription?.plan?.name || 'Starter'}
-                        </Badge>
-                      </td>
+                        <td className="py-3 px-4 text-slate-500">
+                          {ownerEmail}
+                        </td>
 
-                      <td className="py-3 px-4 font-semibold text-slate-900">
-                        {biz.productCount || 0}
-                      </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="purple" size="sm">
+                            {planName}
+                          </Badge>
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <Badge variant={biz.status === 'active' ? 'emerald' : 'rose'} size="sm">
-                          {biz.status}
-                        </Badge>
-                      </td>
+                        <td className="py-3 px-4 font-semibold text-slate-900">
+                          {count}
+                        </td>
 
-                      <td className="py-3 px-4 text-right">
-                        <Button
-                          variant={biz.status === 'active' ? 'danger' : 'primary'}
-                          size="sm"
-                          onClick={() => handleToggleBusinessStatus(biz.id, biz.status)}
-                        >
-                          {biz.status === 'active' ? 'Suspend' : 'Reactivate'}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="py-3 px-4">
+                          <Badge variant={biz.status === 'active' ? 'emerald' : 'rose'} size="sm">
+                            {biz.status || 'active'}
+                          </Badge>
+                        </td>
+
+                        <td className="py-3 px-4 text-right">
+                          <Button
+                            variant={biz.status === 'active' ? 'danger' : 'primary'}
+                            size="sm"
+                            onClick={() => handleToggleBusinessStatus(biz.id, biz.status || 'active')}
+                          >
+                            {biz.status === 'active' ? 'Suspend' : 'Reactivate'}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -503,6 +543,7 @@ export const AdminDashboard: React.FC = () => {
                       <th className="py-3 px-4">Plan Name</th>
                       <th className="py-3 px-4">Monthly Price</th>
                       <th className="py-3 px-4">Product Quota</th>
+                      <th className="py-3 px-4">Categories</th>
                       <th className="py-3 px-4">Checkout Support</th>
                       <th className="py-3 px-4">Merchant Status</th>
                       <th className="py-3 px-4 text-right">Actions</th>
@@ -512,6 +553,7 @@ export const AdminDashboard: React.FC = () => {
                     {plans.map(plan => {
                       const isActive = plan.is_active !== false;
                       const isUnlimited = plan.max_products === -1;
+                      const hasCategories = !['free', 'beginner'].includes(plan.id.toLowerCase());
 
                       return (
                         <tr key={plan.id} className={`transition ${isActive ? 'hover:bg-slate-50/80' : 'bg-slate-50/50 opacity-75'}`}>
@@ -534,6 +576,18 @@ export const AdminDashboard: React.FC = () => {
                             <Badge variant={isUnlimited ? 'purple' : 'slate'} size="sm">
                               {isUnlimited ? 'Unlimited' : `${plan.max_products} Products`}
                             </Badge>
+                          </td>
+
+                          <td className="py-3.5 px-4">
+                            {hasCategories ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-2xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                Multiple Categories
+                              </span>
+                            ) : (
+                              <span className="text-2xs text-slate-400 font-medium">
+                                Single / None
+                              </span>
+                            )}
                           </td>
 
                           <td className="py-3.5 px-4">
@@ -607,6 +661,19 @@ export const AdminDashboard: React.FC = () => {
                         <li className="flex items-center gap-1.5">
                           <Check className="w-3 h-3 text-blue-600 shrink-0" />
                           <span>{plan.max_products === -1 ? 'Unlimited products' : `${plan.max_products} max products`}</span>
+                        </li>
+                        <li className="flex items-center gap-1.5">
+                          {!['free', 'beginner'].includes(plan.id.toLowerCase()) ? (
+                            <>
+                              <Check className="w-3 h-3 text-blue-600 shrink-0" />
+                              <span className="text-emerald-700 font-medium">Multiple Categories</span>
+                            </>
+                          ) : (
+                            <>
+                              <X className="w-3 h-3 text-slate-300 shrink-0" />
+                              <span className="text-slate-400">Single / No Categories</span>
+                            </>
+                          )}
                         </li>
                         <li className="flex items-center gap-1.5">
                           <Check className="w-3 h-3 text-blue-600 shrink-0" />

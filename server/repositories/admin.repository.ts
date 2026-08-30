@@ -120,10 +120,19 @@ export class AdminRepository {
         const productsCount = (b.products || []).filter((p: any) => p.status !== 'archived').length;
         const ordersCount = (b.orders || []).length;
 
+        const effectiveSlug = (store?.slug && store.slug.trim()) ||
+          (b.slug && b.slug.trim()) ||
+          (b.name ? b.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '') ||
+          `store-${(b.id || 'x').slice(0, 8)}`;
+
+        const ownerEmail = ownerProfile?.email || b.email || '';
+        const ownerName = ownerProfile?.full_name || 'Store Owner';
+        const planName = plan?.name || sub?.plan_id || 'Starter';
+
         return {
           id: b.id,
-          name: b.name,
-          slug: b.slug,
+          name: b.name || 'Store',
+          slug: effectiveSlug,
           description: b.description,
           logo_url: b.logo_url,
           phone: b.phone,
@@ -134,16 +143,31 @@ export class AdminRepository {
           state: b.state,
           city: b.city,
           address: b.address,
-          status: b.status,
+          status: b.status || 'active',
           created_at: b.created_at,
           updated_at: b.updated_at,
-          storeSlug: store?.slug || b.slug,
+          storeSlug: effectiveSlug,
           storeStatus: store?.status || (b.status === 'active' ? 'published' : 'suspended'),
-          plan: plan?.name || 'Free Plan',
-          planId: plan?.id || 'free',
-          ownerName: ownerProfile?.full_name || 'Store Owner',
-          ownerEmail: ownerProfile?.email || b.email,
+          store: {
+            id: store?.id,
+            slug: effectiveSlug,
+            status: store?.status || (b.status === 'active' ? 'published' : 'suspended')
+          },
+          plan: planName,
+          planId: plan?.id || sub?.plan_id || 'starter',
+          subscription: {
+            plan: {
+              name: planName
+            }
+          },
+          owner: {
+            email: ownerEmail,
+            full_name: ownerName
+          },
+          ownerName,
+          ownerEmail,
           productsCount,
+          productCount: productsCount,
           ordersCount
         };
       });
@@ -315,6 +339,7 @@ export class AdminRepository {
         is_active: Boolean(p.is_active),
         features: [
           `${p.max_products === -1 ? 'Unlimited' : p.max_products} Products`,
+          !['free', 'beginner'].includes(p.id?.toLowerCase()) ? 'Multiple Product Categories' : 'No Categories',
           p.can_checkout ? 'Online Direct Checkout' : 'WhatsApp Ordering',
           'Mobile-optimized storefront'
         ]
@@ -365,6 +390,7 @@ export class AdminRepository {
         is_active: Boolean(data.is_active),
         features: [
           `${data.max_products === -1 ? 'Unlimited' : data.max_products} Products`,
+          !['free', 'beginner'].includes(data.id?.toLowerCase()) ? 'Multiple Product Categories' : 'No Categories',
           data.can_checkout ? 'Online Direct Checkout' : 'WhatsApp Ordering',
           'Mobile-optimized storefront'
         ]

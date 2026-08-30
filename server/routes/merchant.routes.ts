@@ -768,6 +768,55 @@ router.post('/categories', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 /**
+ * PUT /api/merchant/categories/:id
+ */
+router.put('/categories/:id', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { membership } = await getOrCreateUserBusiness(req.user);
+    const { name, description, is_active, sort_order } = req.body;
+
+    const existing = await productRepository.getCategoryById(req.params.id);
+    if (!existing || existing.business_id !== membership.business_id) {
+      return res.status(404).json({ success: false, error: { message: 'Category not found.' } });
+    }
+
+    const updatedCat = await productRepository.updateCategory(req.params.id, {
+      name,
+      description,
+      is_active,
+      sort_order
+    });
+
+    return res.json({ success: true, data: updatedCat });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message || 'Failed to update category.' } });
+  }
+});
+
+/**
+ * DELETE /api/merchant/categories/:id
+ */
+router.delete('/categories/:id', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { membership } = await getOrCreateUserBusiness(req.user);
+
+    const existing = await productRepository.getCategoryById(req.params.id);
+    if (!existing || existing.business_id !== membership.business_id) {
+      return res.status(404).json({ success: false, error: { message: 'Category not found.' } });
+    }
+
+    await productRepository.deleteCategory(req.params.id);
+    return res.json({ success: true, message: 'Category deleted successfully.' });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: { message: error.message || 'Failed to delete category.' } });
+  }
+});
+
+/**
  * GET /api/merchant/orders
  */
 router.get('/orders', async (req: AuthenticatedRequest, res: Response) => {

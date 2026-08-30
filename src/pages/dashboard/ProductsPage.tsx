@@ -8,13 +8,17 @@ import {
   ExternalLink,
   Sparkles,
   AlertCircle,
-  Tag
+  Tag,
+  FolderPlus,
+  X,
+  Layers
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { Product, Category } from '../../types';
 import { formatCurrency } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
+import { Modal } from '../../components/common/Modal';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { ProductFormModal } from './ProductFormModal';
 import { useToast } from '../../context/ToastContext';
@@ -34,6 +38,14 @@ export const ProductsPage: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Category Manager Modal state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatDesc, setNewCatDesc] = useState('');
+  const [isCreatingCat, setIsCreatingCat] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [editingCatName, setEditingCatName] = useState('');
 
   const { success, error } = useToast();
   const navigate = useNavigate();
@@ -61,6 +73,9 @@ export const ProductsPage: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const currentPlanId = (subscription?.plan_id || subscription?.plan?.id || 'free').toLowerCase();
+  const isCategoryAllowed = !['free', 'beginner'].includes(currentPlanId);
 
   const handleCreateOrUpdate = async (productData: any) => {
     if (editingProduct) {
@@ -90,6 +105,51 @@ export const ProductsPage: React.FC = () => {
     }
   };
 
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+    setIsCreatingCat(true);
+    try {
+      const created = await api.createCategory({
+        name: newCatName.trim(),
+        description: newCatDesc.trim() || undefined
+      });
+      setCategories(prev => [...prev, created]);
+      setNewCatName('');
+      setNewCatDesc('');
+      success(`Category "${created.name}" created!`);
+    } catch (err: any) {
+      error(err.message || 'Failed to create category');
+    } finally {
+      setIsCreatingCat(false);
+    }
+  };
+
+  const handleUpdateCategory = async (catId: string) => {
+    if (!editingCatName.trim()) return;
+    try {
+      const updated = await api.updateCategory(catId, { name: editingCatName.trim() });
+      setCategories(prev => prev.map(c => c.id === catId ? updated : c));
+      setEditingCatId(null);
+      success('Category updated');
+    } catch (err: any) {
+      error(err.message || 'Failed to update category');
+    }
+  };
+
+  const handleDeleteCategory = async (catId: string) => {
+    try {
+      await api.deleteCategory(catId);
+      setCategories(prev => prev.filter(c => c.id !== catId));
+      if (selectedCategory === catId) {
+        setSelectedCategory('all');
+      }
+      success('Category deleted');
+    } catch (err: any) {
+      error(err.message || 'Failed to delete category');
+    }
+  };
+
   const maxProducts = subscription?.entitlements?.max_products ?? 10;
   const isUnlimited = maxProducts === -1;
   const isAtProductLimit = !isUnlimited && products.length >= maxProducts;
@@ -97,7 +157,7 @@ export const ProductsPage: React.FC = () => {
   const filteredProducts = products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat = selectedCategory === 'all' || p.category_id === selectedCategory;
+    const matchesCat = !isCategoryAllowed || selectedCategory === 'all' || p.category_id === selectedCategory;
     return matchesSearch && matchesCat;
   });
 
@@ -112,7 +172,18 @@ export const ProductsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {isCategoryAllowed && (
+            <Button
+              variant="secondary"
+              size="md"
+              leftIcon={<Tag className="w-4 h-4 text-emerald-600" />}
+              onClick={() => setIsCategoryModalOpen(true)}
+            >
+              Categories ({categories.length})
+            </Button>
+          )}
+
           <Button
             variant="primary"
             size="md"
@@ -139,6 +210,9 @@ export const ProductsPage: React.FC = () => {
             </div>
             <p className="text-2xs text-slate-500">
               Current plan: <strong>{subscription?.plan?.name || 'Free Plan'}</strong>
+              {!isCategoryAllowed && (
+                <span className="text-slate-400"> • Categories unlocked on WhatsApp Starter & higher plans</span>
+              )}
             </p>
           </div>
         </div>
@@ -167,18 +241,23 @@ export const ProductsPage: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <select
-            value={selectedCategory}
-            onChange={e => setSelectedCategory(e.target.value)}
-            className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-          >
-            <option value="all">All Categories</option>
-            {categories.map(c => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
+        {isCategoryAllowed && (
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+            >
+              <option value="all">All Categories ({products.length})</option>
+              {categories.map(c => {
+                const count = products.filter(p => p.category_id === c.id).length;
+                return (
+                  <option key={c.id} value={c.id}>{c.name} ({count})</option>
+                );
+              })}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Product Table / Cards */}
@@ -208,7 +287,7 @@ export const ProductsPage: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/50 text-2xs uppercase tracking-wider text-slate-500 font-semibold">
                   <th className="py-3 px-4">Product</th>
-                  <th className="py-3 px-4">Category</th>
+                  {isCategoryAllowed && <th className="py-3 px-4">Category</th>}
                   <th className="py-3 px-4">Price (NGN)</th>
                   <th className="py-3 px-4">Stock</th>
                   <th className="py-3 px-4">Status</th>
@@ -240,9 +319,17 @@ export const ProductsPage: React.FC = () => {
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 text-slate-600">
-                        {product.category?.name || '—'}
-                      </td>
+                      {isCategoryAllowed && (
+                        <td className="py-3 px-4">
+                          {product.category?.name ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-2xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                              {product.category.name}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      )}
 
                       <td className="py-3 px-4 font-bold text-slate-900">
                         {formatCurrency(product.price)}
@@ -322,7 +409,147 @@ export const ProductsPage: React.FC = () => {
         product={editingProduct}
         categories={categories}
         isAtProductLimit={isAtProductLimit}
+        isCategoryAllowed={isCategoryAllowed}
+        onCategoryCreated={cat => setCategories(prev => [...prev, cat])}
       />
+
+      {/* Category Manager Modal */}
+      {isCategoryAllowed && (
+        <Modal
+          isOpen={isCategoryModalOpen}
+          onClose={() => {
+            setIsCategoryModalOpen(false);
+            setEditingCatId(null);
+          }}
+          title="Store Categories"
+          description="Create and manage multiple product categories to organize your storefront."
+          maxWidth="lg"
+        >
+          <div className="space-y-6">
+            {/* Create Category Form */}
+            <form onSubmit={handleCreateCategory} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+              <div className="font-semibold text-xs text-slate-900 flex items-center gap-1.5">
+                <FolderPlus className="w-4 h-4 text-emerald-600" />
+                <span>Add New Category</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Category Name (e.g. Cleansers, Shoes)*"
+                  value={newCatName}
+                  onChange={e => setNewCatName(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <input
+                  type="text"
+                  placeholder="Short description (optional)"
+                  value={newCatDesc}
+                  onChange={e => setNewCatDesc(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isCreatingCat}
+                  disabled={!newCatName.trim()}
+                >
+                  Create Category
+                </Button>
+              </div>
+            </form>
+
+            {/* Category List */}
+            <div className="space-y-2">
+              <div className="text-2xs uppercase tracking-wider text-slate-500 font-semibold">
+                Existing Categories ({categories.length})
+              </div>
+
+              {categories.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  No categories created yet. Add your first category above!
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 border border-slate-200 rounded-2xl overflow-hidden bg-white">
+                  {categories.map(cat => {
+                    const count = products.filter(p => p.category_id === cat.id).length;
+                    const isEditing = editingCatId === cat.id;
+
+                    return (
+                      <div key={cat.id} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50/50">
+                        {isEditing ? (
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editingCatName}
+                              onChange={e => setEditingCatName(e.target.value)}
+                              className="flex-1 px-2.5 py-1.5 text-xs rounded-lg border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onClick={() => handleUpdateCategory(cat.id)}
+                            >
+                              Save
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => setEditingCatId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-xs text-slate-900">{cat.name}</span>
+                                <Badge variant="slate" size="sm">
+                                  {count} product{count === 1 ? '' : 's'}
+                                </Badge>
+                              </div>
+                              {cat.description && (
+                                <p className="text-2xs text-slate-400 truncate mt-0.5">{cat.description}</p>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCatId(cat.id);
+                                  setEditingCatName(cat.name);
+                                }}
+                                className="p-1.5 text-slate-400 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition"
+                                title="Rename category"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteCategory(cat.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                                title="Delete category"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

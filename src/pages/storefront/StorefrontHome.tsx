@@ -334,16 +334,28 @@ export const StorefrontHome: React.FC = () => {
               </p>
             </div>
 
-            {products.map(product => (
-              <SocialFeedCard
-                key={product.id}
-                product={product}
-                business={business}
-                settings={settings}
-                storeSlug={store.slug}
-                onWhatsAppOrder={p => setWhatsAppProduct(p)}
-              />
-            ))}
+            {filteredProducts.length === 0 ? (
+              <div className="text-center py-16 px-4 bg-white rounded-3xl border border-slate-200/80">
+                <p className="text-sm font-semibold text-slate-700">No products in this category</p>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="mt-3 text-xs font-bold text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  Show all products
+                </button>
+              </div>
+            ) : (
+              filteredProducts.map(product => (
+                <SocialFeedCard
+                  key={product.id}
+                  product={product}
+                  business={business}
+                  settings={settings}
+                  storeSlug={store.slug}
+                  onWhatsAppOrder={p => setWhatsAppProduct(p)}
+                />
+              ))
+            )}
           </div>
         )}
 

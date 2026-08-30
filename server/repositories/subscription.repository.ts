@@ -32,6 +32,7 @@ export class SubscriptionRepository {
         is_active: Boolean(p.is_active),
         features: [
           `${p.max_products === -1 ? 'Unlimited' : p.max_products} Products`,
+          !['free', 'beginner'].includes(p.id?.toLowerCase()) ? 'Multiple Product Categories' : 'No Categories',
           p.can_checkout ? 'Online Direct Checkout' : 'WhatsApp Ordering',
           'Mobile-optimized storefront'
         ]
@@ -71,6 +72,7 @@ export class SubscriptionRepository {
         is_active: Boolean(data.is_active),
         features: [
           `${data.max_products === -1 ? 'Unlimited' : data.max_products} Products`,
+          !['free', 'beginner'].includes(data.id?.toLowerCase()) ? 'Multiple Product Categories' : 'No Categories',
           data.can_checkout ? 'Online Direct Checkout' : 'WhatsApp Ordering',
           'Mobile-optimized storefront'
         ]
@@ -110,6 +112,7 @@ export class SubscriptionRepository {
         is_active: Boolean(data.subscription_plans.is_active),
         features: [
           `${data.subscription_plans.max_products === -1 ? 'Unlimited' : data.subscription_plans.max_products} Products`,
+          !['free', 'beginner'].includes(data.subscription_plans.id?.toLowerCase()) ? 'Multiple Product Categories' : 'No Categories',
           data.subscription_plans.can_checkout ? 'Online Direct Checkout' : 'WhatsApp Ordering',
           'Mobile-optimized storefront'
         ]

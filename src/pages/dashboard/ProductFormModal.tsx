@@ -31,6 +31,8 @@ export interface ProductFormModalProps {
   product?: Product | null;
   categories: Category[];
   isAtProductLimit?: boolean;
+  isCategoryAllowed?: boolean;
+  onCategoryCreated?: (cat: Category) => void;
 }
 
 interface ImageItem {
@@ -45,7 +47,9 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   onSave,
   product,
   categories,
-  isAtProductLimit = false
+  isAtProductLimit = false,
+  isCategoryAllowed = true,
+  onCategoryCreated
 }) => {
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -57,6 +61,11 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [trackInventory, setTrackInventory] = useState(true);
   const [featured, setFeatured] = useState(false);
   const [status, setStatus] = useState<'published' | 'draft'>('published');
+  
+  // Quick Category creation state
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
   
   // Media State: Multiple Images + TikTok Video URL
   const [images, setImages] = useState<ImageItem[]>([]);
@@ -95,7 +104,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setName('');
       setSlug('');
       setDescription('');
-      setCategoryId(categories[0]?.id || '');
+      setCategoryId(isCategoryAllowed ? (categories[0]?.id || '') : '');
       setPriceNaira('');
       setComparePriceNaira('');
       setStockQuantity('15');
@@ -107,13 +116,37 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       ]);
       setTiktokVideoUrl('');
       setCustomImageUrl('');
+      setIsCreatingCategory(false);
+      setNewCategoryName('');
     }
-  }, [product, categories, isOpen]);
+  }, [product, categories, isOpen, isCategoryAllowed]);
 
   const handleNameChange = (val: string) => {
     setName(val);
     if (!product) {
       setSlug(slugify(val));
+    }
+  };
+
+  const handleCreateQuickCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!newCategoryName.trim()) return;
+
+    setIsSubmittingCategory(true);
+    try {
+      const created = await api.createCategory({ name: newCategoryName.trim() });
+      if (onCategoryCreated) {
+        onCategoryCreated(created);
+      }
+      setCategoryId(created.id);
+      setNewCategoryName('');
+      setIsCreatingCategory(false);
+      success(`Category "${created.name}" created!`);
+    } catch (err: any) {
+      error(err.message || 'Failed to create category');
+    } finally {
+      setIsSubmittingCategory(false);
     }
   };
 
@@ -275,7 +308,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         name,
         slug: slug || slugify(name),
         description,
-        category_id: categoryId || undefined,
+        category_id: isCategoryAllowed && categoryId ? categoryId : undefined,
         price: priceInKobo,
         compare_at_price: comparePriceInKobo,
         stock_quantity: trackInventory ? Number(stockQuantity) || 0 : 999,
@@ -330,21 +363,74 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
-            <select
-              value={categoryId}
-              onChange={e => setCategoryId(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-            >
-              <option value="">No Category</option>
-              {categories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Category Selection - Only shown for plans with Category support */}
+          {isCategoryAllowed && (
+            <div className="sm:col-span-1">
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-700">Category</label>
+                {!isCreatingCategory ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCategory(true)}
+                    className="text-2xs font-semibold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-0.5"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>New</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCategory(false)}
+                    className="text-2xs text-slate-400 hover:text-slate-600"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
 
-          <div>
+              {isCreatingCategory ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="e.g. Skin Care, Hair..."
+                    value={newCategoryName}
+                    onChange={e => setNewCategoryName(e.target.value)}
+                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    autoFocus
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCreateQuickCategory(e);
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    disabled={!newCategoryName.trim() || isSubmittingCategory}
+                    onClick={handleCreateQuickCategory}
+                    isLoading={isSubmittingCategory}
+                  >
+                    Add
+                  </Button>
+                </div>
+              ) : (
+                <select
+                  value={categoryId}
+                  onChange={e => setCategoryId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-sm rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  <option value="">No Category</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          <div className={isCategoryAllowed ? 'sm:col-span-1' : 'sm:col-span-2'}>
             <label className="block text-xs font-semibold text-slate-700 mb-1">URL Slug</label>
             <input
               type="text"

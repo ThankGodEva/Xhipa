@@ -36,9 +36,9 @@ export const LoginPage: React.FC = () => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await login(email, password);
+      const authenticatedUser = await login(email, password);
       success('Welcome back!');
-      if (email.includes('admin')) {
+      if (authenticatedUser?.is_platform_admin || email.includes('admin')) {
         navigate('/admin');
       } else {
         navigate('/dashboard');

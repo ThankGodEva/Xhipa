@@ -16,6 +16,7 @@ export const PricingPage: React.FC = () => {
       price: 0,
       description: 'Ideal for hobbyists and early sellers starting out on social media.',
       maxProducts: '10 products',
+      categories: false,
       checkout: false,
       whatsapp: true,
       branding: false,
@@ -30,6 +31,7 @@ export const PricingPage: React.FC = () => {
       price: 135000, // 1,350 NGN
       description: 'For growing sellers who need more product catalogue capacity.',
       maxProducts: '30 products',
+      categories: false,
       checkout: false,
       whatsapp: true,
       branding: false,
@@ -44,6 +46,7 @@ export const PricingPage: React.FC = () => {
       price: 299999, // 2,999.99 NGN
       description: 'For high-volume catalogue sellers who want expanded capacity on WhatsApp.',
       maxProducts: '100 products',
+      categories: true,
       checkout: false,
       whatsapp: true,
       branding: false,
@@ -58,6 +61,7 @@ export const PricingPage: React.FC = () => {
       price: 500000, // 5,000 NGN
       description: 'For active merchants accepting automated online payments & guest checkout.',
       maxProducts: '100 products',
+      categories: true,
       checkout: true,
       whatsapp: true,
       branding: false,
@@ -72,6 +76,7 @@ export const PricingPage: React.FC = () => {
       price: 1500000, // 15,000 NGN
       description: 'For established retailers, mini-dropshippers and multi-product stores.',
       maxProducts: 'Unlimited',
+      categories: true,
       checkout: true,
       whatsapp: true,
       branding: true,
@@ -132,6 +137,16 @@ export const PricingPage: React.FC = () => {
                   <li className="flex items-center gap-2">
                     <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span><strong>{plan.maxProducts}</strong> listing capacity</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    {plan.categories ? (
+                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <X className="w-4 h-4 text-slate-300 shrink-0" />
+                    )}
+                    <span className={!plan.categories ? 'text-slate-400' : 'font-medium text-slate-800'}>
+                      {plan.categories ? 'Multiple Product Categories' : 'No Categories (Single Catalogue)'}
+                    </span>
                   </li>
                   <li className="flex items-center gap-2">
                     {plan.checkout ? (

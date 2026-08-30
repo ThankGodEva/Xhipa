@@ -8,7 +8,9 @@ import {
   Zap,
   ArrowRight,
   ShieldCheck,
-  Check
+  Check,
+  X,
+  Tag
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { SubscriptionPlan, Entitlements } from '../../types';
@@ -217,6 +219,19 @@ export const SubscriptionPage: React.FC = () => {
                           </>
                         )}
                       </span>
+                    </li>
+                    <li className="flex items-center gap-2">
+                      {!['free', 'beginner'].includes(plan.id.toLowerCase()) ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="font-medium text-slate-800">Multiple Product Categories</span>
+                        </>
+                      ) : (
+                        <>
+                          <X className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                          <span className="text-slate-400">No Categories (Single listing)</span>
+                        </>
+                      )}
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />

@@ -8,7 +8,7 @@ interface AuthContextValue {
   business: Business | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
+  login: (email: string, pass: string) => Promise<UserProfile | null>;
   register: (fullName: string, email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   switchDemoRole: (role: 'merchant' | 'admin') => void;
@@ -98,55 +98,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // If Supabase is configured with live keys, listen to auth state changes
     if (isSupabaseConfigured) {
       setIsLoading(true);
+
+      const syncUserProfile = async (sessionUser: any, accessToken?: string) => {
+        if (!sessionUser) {
+          setUser(null);
+          localStorage.removeItem('storefront_auth_token');
+          setIsLoading(false);
+          return;
+        }
+
+        if (accessToken) {
+          localStorage.setItem('storefront_auth_token', accessToken);
+        }
+
+        const isVerified = Boolean(sessionUser.email_confirmed_at || (sessionUser as any).confirmed_at);
+        let isAdmin = Boolean(sessionUser.user_metadata?.is_platform_admin);
+
+        // Fetch authoritative database profile from server
+        try {
+          const authData = await api.getCurrentUser();
+          if (authData?.user?.is_platform_admin !== undefined) {
+            isAdmin = Boolean(authData.user.is_platform_admin);
+          }
+        } catch (e) {
+          console.warn('Could not load authoritative user profile:', e);
+        }
+
+        const profile: UserProfile = {
+          id: sessionUser.id,
+          email: sessionUser.email || '',
+          full_name: sessionUser.user_metadata?.full_name || 'Merchant User',
+          is_platform_admin: isAdmin,
+          is_email_verified: isVerified,
+          email_confirmed_at: sessionUser.email_confirmed_at || null,
+          created_at: sessionUser.created_at,
+          updated_at: sessionUser.updated_at || sessionUser.created_at
+        };
+
+        setUser(profile);
+        saveStoredLocalUser({ profile });
+        setIsLoading(false);
+      };
+
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
-          const isVerified = Boolean(session.user.email_confirmed_at || (session.user as any).confirmed_at);
-          const profile: UserProfile = {
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: session.user.user_metadata?.full_name || 'Merchant User',
-            is_platform_admin: session.user.user_metadata?.is_platform_admin || false,
-            is_email_verified: isVerified,
-            email_confirmed_at: session.user.email_confirmed_at || null,
-            created_at: session.user.created_at,
-            updated_at: session.user.updated_at || session.user.created_at
-          };
-          setUser(profile);
-          saveStoredLocalUser({ profile });
-          localStorage.setItem('storefront_auth_token', session.access_token);
+          syncUserProfile(session.user, session.access_token);
         } else {
           setUser(null);
           localStorage.removeItem('storefront_auth_token');
+          setIsLoading(false);
         }
       }).catch((e) => {
         console.warn('Supabase session load check:', e);
         setUser(null);
         localStorage.removeItem('storefront_auth_token');
-      }).finally(() => {
         setIsLoading(false);
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
-          const isVerified = Boolean(session.user.email_confirmed_at || (session.user as any).confirmed_at);
-          const profile: UserProfile = {
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: session.user.user_metadata?.full_name || 'Merchant User',
-            is_platform_admin: session.user.user_metadata?.is_platform_admin || false,
-            is_email_verified: isVerified,
-            email_confirmed_at: session.user.email_confirmed_at || null,
-            created_at: session.user.created_at,
-            updated_at: session.user.updated_at || session.user.created_at
-          };
-          setUser(profile);
-          saveStoredLocalUser({ profile });
-          localStorage.setItem('storefront_auth_token', session.access_token);
+          syncUserProfile(session.user, session.access_token);
         } else {
           setUser(null);
           localStorage.removeItem('storefront_auth_token');
+          setIsLoading(false);
         }
-        setIsLoading(false);
       });
 
       return () => {
@@ -173,11 +189,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data?.session) {
           localStorage.setItem('storefront_auth_token', data.session.access_token);
           const isVerified = Boolean(data.user.email_confirmed_at || (data.user as any).confirmed_at);
+          let isAdmin = Boolean(data.user.user_metadata?.is_platform_admin);
+
+          try {
+            const authData = await api.getCurrentUser();
+            if (authData?.user?.is_platform_admin !== undefined) {
+              isAdmin = Boolean(authData.user.is_platform_admin);
+            }
+          } catch (e) {
+            console.warn('Could not load authoritative user profile on login:', e);
+          }
+
           const profile: UserProfile = {
             id: data.user.id,
             email: data.user.email || normalizedEmail,
             full_name: data.user.user_metadata?.full_name || 'Merchant User',
-            is_platform_admin: data.user.user_metadata?.is_platform_admin || false,
+            is_platform_admin: isAdmin,
             is_email_verified: isVerified,
             email_confirmed_at: data.user.email_confirmed_at || null,
             created_at: data.user.created_at,
@@ -185,7 +212,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           };
           setUser(profile);
           saveStoredLocalUser({ profile });
-          return;
+          return profile;
         }
       }
 
@@ -193,13 +220,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (normalizedEmail === 'merchant@chibeauty.ng' || normalizedEmail.includes('merchant@')) {
         setUser(DEMO_MERCHANT);
         localStorage.setItem('storefront_auth_token', 'demo-merchant-token');
-        return;
+        return DEMO_MERCHANT;
       }
 
       if (normalizedEmail === 'admin@platform.ng' || normalizedEmail.includes('admin@')) {
         setUser(DEMO_ADMIN);
         localStorage.setItem('storefront_auth_token', 'demo-admin-token');
-        return;
+        return DEMO_ADMIN;
       }
 
       // 3. Check local registered accounts
@@ -208,7 +235,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (localMatch) {
         setUser(localMatch.profile);
         localStorage.setItem('storefront_auth_token', localMatch.profile.id);
-        return;
+        return localMatch.profile;
       }
 
       // 4. If new user in preview, create profile and authenticate directly
@@ -228,6 +255,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveStoredLocalUser({ profile: newProfile, password: _pass });
       setUser(newProfile);
       localStorage.setItem('storefront_auth_token', newProfile.id);
+      return newProfile;
     } finally {
       setIsLoading(false);
     }

@@ -62,11 +62,12 @@ export const LandingPage: React.FC = () => {
       price: 0,
       description: 'Ideal for hobbyists and early sellers starting out on social media.',
       features: [
-        'Up to 10 products',
-        'Catalogue Mode & WhatsApp Ordering',
-        'Mobile-first digital storefront',
-        'Standard Order Tracking',
-        'Platform Branding'
+        { text: 'Up to 10 products', included: true },
+        { text: 'No Categories (Single Catalogue)', included: false },
+        { text: 'Catalogue Mode & WhatsApp Ordering', included: true },
+        { text: 'Mobile-first digital storefront', included: true },
+        { text: 'Standard Order Tracking', included: true },
+        { text: 'Platform Branding', included: true }
       ],
       cta: 'Get Started Free',
       popular: false,
@@ -77,11 +78,12 @@ export const LandingPage: React.FC = () => {
       price: 135000, // 1,350 NGN
       description: 'For growing sellers who need more product catalogue capacity.',
       features: [
-        'Up to 30 products',
-        'Catalogue Mode & WhatsApp Ordering',
-        'Mobile-first digital storefront',
-        'Customer Directory & Order Logs',
-        'Platform Branding'
+        { text: 'Up to 30 products', included: true },
+        { text: 'No Categories (Single Catalogue)', included: false },
+        { text: 'Catalogue Mode & WhatsApp Ordering', included: true },
+        { text: 'Mobile-first digital storefront', included: true },
+        { text: 'Customer Directory & Order Logs', included: true },
+        { text: 'Platform Branding', included: true }
       ],
       cta: 'Start Beginner Plan',
       popular: false,
@@ -92,11 +94,12 @@ export const LandingPage: React.FC = () => {
       price: 299999, // 2,999.99 NGN
       description: 'For high-volume catalogue sellers who want expanded capacity on WhatsApp.',
       features: [
-        'Up to 100 products',
-        'Catalogue Mode & WhatsApp Ordering',
-        'Mobile-first digital storefront',
-        'Customer Directory & Order Logs',
-        'Platform Branding'
+        { text: 'Up to 100 products', included: true },
+        { text: 'Multiple Product Categories & Filter', included: true, highlight: true },
+        { text: 'Catalogue Mode & WhatsApp Ordering', included: true },
+        { text: 'Mobile-first digital storefront', included: true },
+        { text: 'Customer Directory & Order Logs', included: true },
+        { text: 'Platform Branding', included: true }
       ],
       cta: 'Start WhatsApp Plan',
       popular: false,
@@ -107,11 +110,12 @@ export const LandingPage: React.FC = () => {
       price: 500000, // 5,000 NGN
       description: 'For active merchants accepting automated online payments & guest checkout.',
       features: [
-        'Up to 100 products',
-        'Online Paystack Checkout & Direct Payments',
-        'WhatsApp Ordering Option Included',
-        'Automated Payment Verification',
-        'Customer Order History & Snapshots'
+        { text: 'Up to 100 products', included: true },
+        { text: 'Multiple Product Categories & Filter', included: true, highlight: true },
+        { text: 'Online Paystack Checkout & Direct Payments', included: true },
+        { text: 'WhatsApp Ordering Option Included', included: true },
+        { text: 'Automated Payment Verification', included: true },
+        { text: 'Customer Order History & Snapshots', included: true }
       ],
       cta: 'Start with Checkout',
       popular: true,
@@ -122,12 +126,13 @@ export const LandingPage: React.FC = () => {
       price: 1500000, // 15,000 NGN
       description: 'For established retailers, mini-dropshippers and multi-product stores.',
       features: [
-        'Unlimited products',
-        'Online Paystack Checkout & WhatsApp Mode',
-        'Remove Platform Branding',
-        'Custom Domain Support',
-        'Advanced Sales & Conversion Analytics',
-        'Priority Merchant Support'
+        { text: 'Unlimited products', included: true },
+        { text: 'Unlimited Multiple Categories & Filter', included: true, highlight: true },
+        { text: 'Online Paystack Checkout & WhatsApp Mode', included: true },
+        { text: 'Remove Platform Branding', included: true },
+        { text: 'Custom Domain Support', included: true },
+        { text: 'Advanced Sales & Conversion Analytics', included: true },
+        { text: 'Priority Merchant Support', included: true }
       ],
       cta: 'Go Unlimited',
       popular: false,
@@ -706,12 +711,23 @@ export const LandingPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-3 pt-4 border-t border-slate-100 text-xs text-slate-600 mb-8">
-                    {plan.features.map((feat, i) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                        <span>{feat}</span>
-                      </div>
-                    ))}
+                    {plan.features.map((feat: any, i: number) => {
+                      const isObj = typeof feat === 'object';
+                      const text = isObj ? feat.text : feat;
+                      const included = isObj ? feat.included : !feat.toLowerCase().startsWith('no ');
+                      const highlight = isObj ? feat.highlight : false;
+
+                      return (
+                        <div key={i} className={`flex items-start gap-2 ${!included ? 'text-slate-400' : ''}`}>
+                          {included ? (
+                            <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                          ) : (
+                            <X className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
+                          )}
+                          <span className={highlight ? 'font-semibold text-slate-900' : ''}>{text}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
