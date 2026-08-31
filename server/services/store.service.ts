@@ -31,14 +31,20 @@ export class StoreService {
       business.banner_url = normalizeMediaUrl(business.banner_url);
     }
 
-    // 2. Resolve store & settings
-    const [store, settings, categories, products, stories] = await Promise.all([
+    // 2. Resolve store & settings safely
+    const [storeRes, settingsRes, categoriesRes, productsRes, storiesRes] = await Promise.allSettled([
       merchantRepository.getStoreByBusinessId(business.id),
       merchantRepository.getStoreSettings(business.id),
       productRepository.getCategories(business.id),
       productRepository.getProducts(business.id, { status: 'published' }),
       storyRepository.getStoriesByBusinessId(business.id)
     ]);
+
+    const store = storeRes.status === 'fulfilled' ? storeRes.value : null;
+    const settings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+    const categories = categoriesRes.status === 'fulfilled' ? (categoriesRes.value || []) : [];
+    const products = productsRes.status === 'fulfilled' ? (productsRes.value || []) : [];
+    const stories = storiesRes.status === 'fulfilled' ? (storiesRes.value || []) : [];
 
     if (!store || !settings) {
       return null;
@@ -57,9 +63,9 @@ export class StoreService {
       business,
       store,
       settings,
-      categories: categories.filter(c => c.is_active),
-      products,
-      stories
+      categories: categories.filter(c => c && c.is_active),
+      products: products || [],
+      stories: stories || []
     };
   }
 }

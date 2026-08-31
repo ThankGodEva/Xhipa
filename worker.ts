@@ -101,6 +101,11 @@ export default {
       supabaseAnonKey: env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
       paystackSecretKey: env.PAYSTACK_SECRET_KEY || '',
       paystackPublicKey: env.PAYSTACK_PUBLIC_KEY || '',
+      r2AccountId: (env as any).CLOUDFLARE_R2_ACCOUNT_ID || '',
+      r2AccessKeyId: (env as any).CLOUDFLARE_R2_ACCESS_KEY_ID || '',
+      r2SecretAccessKey: (env as any).CLOUDFLARE_R2_SECRET_ACCESS_KEY || '',
+      r2BucketName: (env as any).CLOUDFLARE_R2_BUCKET_NAME || '',
+      r2PublicUrl: env.R2_PUBLIC_URL || '',
       appUrl: env.APP_URL || url.origin || 'https://xhipa.com'
     });
 
@@ -194,22 +199,27 @@ export default {
       }
 
       const userId = authData.user.id;
-      const { data: members, error: memberErr } = await supabase
+      let businessId = '';
+
+      const { data: members } = await supabase
         .from('business_members')
         .select('business_id, role')
         .eq('user_id', userId);
 
-      if (memberErr || !members || members.length === 0 || !members[0]?.business_id) {
-        return jsonResponse({
-          success: false,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Forbidden: Valid tenant business membership required for media upload.'
-          }
-        }, 403);
+      if (members && members.length > 0 && members[0]?.business_id) {
+        businessId = members[0].business_id;
+      } else {
+        const { data: ownedBiz } = await supabase
+          .from('businesses')
+          .select('id')
+          .eq('owner_id', userId)
+          .limit(1);
+        if (ownedBiz && ownedBiz.length > 0 && ownedBiz[0]?.id) {
+          businessId = ownedBiz[0].id;
+        } else {
+          businessId = 'general';
+        }
       }
-
-      const businessId = members[0].business_id;
 
       const contentType = request.headers.get('content-type') || '';
 

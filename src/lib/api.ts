@@ -200,22 +200,28 @@ export const api = {
           .maybeSingle();
 
         if (bizData) {
-          const [storeRes, settingsRes, catRes, prodRes, storyRes] = await Promise.all([
+          const [storeRes, settingsRes, catRes, prodRes, storyRes] = await Promise.allSettled([
             supabase.from('stores').select('*').eq('business_id', bizData.id).maybeSingle(),
             supabase.from('store_settings').select('*').eq('business_id', bizData.id).maybeSingle(),
             supabase.from('categories').select('*').eq('business_id', bizData.id).eq('is_active', true),
             supabase.from('products').select('*').eq('business_id', bizData.id).eq('status', 'published'),
-            supabase.from('stories').select('*').eq('business_id', bizData.id)
+            supabase.from('store_stories').select('*').eq('business_id', bizData.id)
           ]);
 
-          if (storeRes.data && settingsRes.data && storeRes.data.status === 'published') {
+          const storeData = storeRes.status === 'fulfilled' ? storeRes.value.data : null;
+          const settingsData = settingsRes.status === 'fulfilled' ? settingsRes.value.data : null;
+          const catData = catRes.status === 'fulfilled' ? (catRes.value.data || []) : [];
+          const prodData = prodRes.status === 'fulfilled' ? (prodRes.value.data || []) : [];
+          const storyData = storyRes.status === 'fulfilled' ? (storyRes.value.data || []) : [];
+
+          if (storeData && settingsData && storeData.status === 'published') {
             return {
               business: bizData,
-              store: storeRes.data,
-              settings: settingsRes.data,
-              categories: catRes.data || [],
-              products: prodRes.data || [],
-              stories: storyRes.data || []
+              store: storeData,
+              settings: settingsData,
+              categories: catData,
+              products: prodData,
+              stories: storyData
             };
           }
         }

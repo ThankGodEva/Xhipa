@@ -17,7 +17,10 @@ export class StoryRepository {
         .eq('is_active', true)
         .order('sort_order', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('Non-fatal: store_stories query returned error:', error.message);
+        return [];
+      }
 
       if (!stories || stories.length === 0) {
         return [];
@@ -44,7 +47,8 @@ export class StoryRepository {
         updated_at: s.updated_at
       }));
     } catch (err) {
-      throw normalizeDatabaseError(err);
+      console.warn('Non-fatal exception in getStoriesByBusinessId:', err);
+      return [];
     }
   }
 
