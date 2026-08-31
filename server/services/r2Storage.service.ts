@@ -297,33 +297,74 @@ export async function getMediaFromR2(key: string): Promise<{
   const config = getR2Config();
   const client = getR2Client();
 
+  const keyParts = key.split('/');
+  const filename = keyParts[keyParts.length - 1];
+  const candidateKeys = Array.from(
+    new Set([
+      key,
+      filename,
+      keyParts.slice(1).join('/'),
+      keyParts.slice(2).join('/'),
+      `branding/${filename}`,
+      `products/${filename}`,
+      `uploads/${filename}`,
+      `general/${filename}`
+    ])
+  ).filter(Boolean);
+
   if (client && config.isConfigured) {
-    try {
-      const command = new GetObjectCommand({
-        Bucket: config.bucketName,
-        Key: key
-      });
-      const response = await client.send(command);
-      return {
-        stream: response.Body,
-        mimetype: response.ContentType || 'application/octet-stream',
-        size: response.ContentLength,
-        cacheControl: response.CacheControl || 'public, max-age=31536000'
-      };
-    } catch (err: any) {
-      if (err.name !== 'NoSuchKey' && err.$metadata?.httpStatusCode !== 404) {
-        console.error('Error fetching from Cloudflare R2:', err);
+    for (const cand of candidateKeys) {
+      try {
+        const command = new GetObjectCommand({
+          Bucket: config.bucketName,
+          Key: cand
+        });
+        const response = await client.send(command);
+        return {
+          stream: response.Body,
+          mimetype: response.ContentType || 'application/octet-stream',
+          size: response.ContentLength,
+          cacheControl: response.CacheControl || 'public, max-age=31536000'
+        };
+      } catch (err: any) {
+        if (err.name !== 'NoSuchKey' && err.$metadata?.httpStatusCode !== 404) {
+          console.warn('Error fetching candidate from Cloudflare R2:', cand, err);
+        }
       }
     }
   }
 
   // Check in-memory fallback storage
-  const cached = fallbackStorage.get(key);
-  if (cached) {
+  for (const cand of candidateKeys) {
+    const cached = fallbackStorage.get(cand);
+    if (cached) {
+      return {
+        buffer: cached.buffer,
+        mimetype: cached.mimetype,
+        size: cached.buffer.length,
+        cacheControl: 'public, max-age=86400'
+      };
+    }
+  }
+
+  // If requested key is an image, provide a clean SVG fallback buffer
+  const isImage = /\.(jpe?g|png|webp|svg|gif|avif)$/i.test(key) ||
+    key.startsWith('branding/') ||
+    key.startsWith('products/') ||
+    key.startsWith('uploads/');
+
+  if (isImage) {
+    const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="none">
+  <rect width="600" height="400" fill="#f8fafc"/>
+  <rect x="20" y="20" width="560" height="360" rx="16" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="8 8"/>
+  <circle cx="300" cy="180" r="44" fill="#e2e8f0"/>
+  <path d="M284 180h32M300 164v32" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+  <text x="300" y="256" text-anchor="middle" fill="#64748b" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600">Store Media Asset</text>
+</svg>`;
     return {
-      buffer: cached.buffer,
-      mimetype: cached.mimetype,
-      size: cached.buffer.length,
+      buffer: Buffer.from(placeholderSvg, 'utf-8'),
+      mimetype: 'image/svg+xml; charset=utf-8',
+      size: Buffer.byteLength(placeholderSvg),
       cacheControl: 'public, max-age=86400'
     };
   }

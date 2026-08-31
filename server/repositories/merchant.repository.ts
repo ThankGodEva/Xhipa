@@ -146,11 +146,26 @@ export class MerchantRepository {
     if (!supabase) return null;
 
     try {
-      // 1. Try finding by businesses.slug
+      const slugVariations = Array.from(
+        new Set([
+          cleanSlug,
+          cleanSlug.replace(/-/g, '_'),
+          cleanSlug.replace(/_/g, '-'),
+          `@${cleanSlug}`,
+          `@${cleanSlug.replace(/-/g, '_')}`,
+          cleanSlug.replace(/^@/, ''),
+          cleanSlug.replace(/^@/, '').replace(/-/g, '_'),
+          cleanSlug.replace(/^@/, '').replace(/_/g, '-')
+        ])
+      ).filter(Boolean);
+
+      const orClause = slugVariations.map(s => `slug.ilike.${s}`).join(',');
+
+      // 1. Try finding by businesses.slug with variations
       const { data, error } = await supabase
         .from('businesses')
         .select('*')
-        .ilike('slug', cleanSlug)
+        .or(orClause)
         .maybeSingle();
 
       if (data) {
@@ -166,7 +181,7 @@ export class MerchantRepository {
       const { data: storeData } = await supabase
         .from('stores')
         .select('business_id')
-        .ilike('slug', cleanSlug)
+        .or(orClause)
         .maybeSingle();
 
       if (storeData && storeData.business_id) {

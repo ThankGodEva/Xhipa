@@ -91,23 +91,38 @@ export default {
     const method = request.method.toUpperCase();
 
     // Initialize dynamic environment variables and Supabase Admin client for Worker runtime
-    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-      const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    const supabaseKey = (
+      env.SUPABASE_SERVICE_ROLE_KEY ||
+      env.SUPABASE_ANON_KEY ||
+      (env as any).SUPABASE_KEY ||
+      (env as any).VITE_SUPABASE_ANON_KEY ||
+      (env as any).VITE_SUPABASE_KEY ||
+      ''
+    ).trim();
+
+    const supabaseUrl = (
+      env.SUPABASE_URL ||
+      (env as any).VITE_SUPABASE_URL ||
+      ''
+    ).trim();
+
+    if (supabaseUrl && supabaseKey) {
+      const supabase = createClient(supabaseUrl, supabaseKey, {
         auth: { autoRefreshToken: false, persistSession: false }
       });
       setSupabaseAdminClient(supabase);
     }
     setServerConfig({
-      supabaseUrl: env.SUPABASE_URL || '',
-      supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
-      supabaseAnonKey: env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
-      paystackSecretKey: env.PAYSTACK_SECRET_KEY || '',
-      paystackPublicKey: env.PAYSTACK_PUBLIC_KEY || '',
-      r2AccountId: (env as any).CLOUDFLARE_R2_ACCOUNT_ID || '',
-      r2AccessKeyId: (env as any).CLOUDFLARE_R2_ACCESS_KEY_ID || '',
-      r2SecretAccessKey: (env as any).CLOUDFLARE_R2_SECRET_ACCESS_KEY || '',
-      r2BucketName: (env as any).CLOUDFLARE_R2_BUCKET_NAME || '',
-      r2PublicUrl: env.R2_PUBLIC_URL || '',
+      supabaseUrl,
+      supabaseServiceRoleKey: supabaseKey,
+      supabaseAnonKey: (env.SUPABASE_ANON_KEY || (env as any).VITE_SUPABASE_ANON_KEY || supabaseKey).trim(),
+      paystackSecretKey: (env.PAYSTACK_SECRET_KEY || (env as any).PAYSTACK_SECRET || '').trim(),
+      paystackPublicKey: (env.PAYSTACK_PUBLIC_KEY || (env as any).VITE_PAYSTACK_PUBLIC_KEY || '').trim(),
+      r2AccountId: (env.CLOUDFLARE_R2_ACCOUNT_ID || (env as any).R2_ACCOUNT_ID || (env as any).CF_ACCOUNT_ID || '').trim(),
+      r2AccessKeyId: (env.CLOUDFLARE_R2_ACCESS_KEY_ID || (env as any).R2_ACCESS_KEY_ID || (env as any).AWS_ACCESS_KEY_ID || '').trim(),
+      r2SecretAccessKey: (env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || (env as any).R2_SECRET_ACCESS_KEY || (env as any).AWS_SECRET_ACCESS_KEY || '').trim(),
+      r2BucketName: (env.CLOUDFLARE_R2_BUCKET_NAME || (env as any).R2_BUCKET_NAME || (env as any).BUCKET_NAME || 'xhipa-storefront-media').trim(),
+      r2PublicUrl: (env.R2_PUBLIC_URL || (env as any).CLOUDFLARE_R2_PUBLIC_URL || (env as any).PUBLIC_R2_URL || '').trim(),
       appUrl: env.APP_URL || url.origin || 'https://xhipa.com'
     });
 
@@ -123,7 +138,7 @@ export default {
         runtime: 'Cloudflare Workers (Edge V8)',
         timestamp: new Date().toISOString(),
         r2_configured: Boolean(env.R2_BUCKET),
-        supabase_configured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
+        supabase_configured: Boolean(supabaseUrl && supabaseKey),
         paystack_configured: Boolean(env.PAYSTACK_SECRET_KEY),
         assets_configured: Boolean(env.ASSETS)
       });
@@ -163,34 +178,60 @@ export default {
       const r2 = env.R2_BUCKET || (env as any).BUCKET || (env as any).MEDIA_BUCKET || (env as any).STORE_ASSETS || (env as any).R2;
       const publicBaseUrl = (env.CLOUDFLARE_R2_PUBLIC_URL || env.R2_PUBLIC_URL || (env as any).PUBLIC_R2_URL || '').replace(/\/$/, '');
 
-      if (r2) {
-        try {
-          const object = await r2.get(key);
-          if (object) {
-            const headers = new Headers();
-            object.writeHttpMetadata(headers);
-            headers.set('etag', object.httpEtag);
-            headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-            headers.set('Access-Control-Allow-Origin', '*');
+      const keyParts = key.split('/');
+      const filename = keyParts[keyParts.length - 1];
+      const candidateKeys = Array.from(
+        new Set([
+          key,
+          filename,
+          keyParts.slice(1).join('/'),
+          keyParts.slice(2).join('/'),
+          `branding/${filename}`,
+          `products/${filename}`,
+          `uploads/${filename}`,
+          `general/${filename}`
+        ])
+      ).filter(Boolean);
 
-            return new Response(object.body, { headers });
+      if (r2) {
+        for (const candidate of candidateKeys) {
+          try {
+            const object = await r2.get(candidate);
+            if (object) {
+              const headers = new Headers();
+              object.writeHttpMetadata(headers);
+              headers.set('etag', object.httpEtag);
+              headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+              headers.set('Access-Control-Allow-Origin', '*');
+
+              return new Response(object.body, { headers });
+            }
+          } catch (err: any) {
+            console.warn('[Worker R2] R2 get error for candidate key:', candidate, err);
           }
-        } catch (err: any) {
-          console.warn('[Worker R2] R2 get error for key:', key, err);
         }
       }
 
-      // Check if Supabase Storage has this media file
-      if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+      // Check if Supabase Storage has this media file across common buckets
+      if (supabaseUrl && supabaseKey) {
+        const storageBuckets = ['storefront-media', 'branding', 'media', 'products', 'uploads', 'assets', 'public'];
         try {
-          const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
-          const { data, error } = await supabase.storage.from('storefront-media').download(key);
-          if (data && !error) {
-            const headers = new Headers();
-            headers.set('Content-Type', data.type || 'image/jpeg');
-            headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-            headers.set('Access-Control-Allow-Origin', '*');
-            return new Response(data, { headers });
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          for (const bucket of storageBuckets) {
+            for (const candidate of candidateKeys) {
+              try {
+                const { data, error } = await supabase.storage.from(bucket).download(candidate);
+                if (data && !error) {
+                  const headers = new Headers();
+                  headers.set('Content-Type', data.type || 'image/jpeg');
+                  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+                  headers.set('Access-Control-Allow-Origin', '*');
+                  return new Response(data, { headers });
+                }
+              } catch {
+                // check next candidate
+              }
+            }
           }
         } catch (err) {
           console.warn('[Worker Media] Supabase storage download error:', err);
@@ -199,6 +240,29 @@ export default {
 
       if (publicBaseUrl) {
         return Response.redirect(`${publicBaseUrl}/${key}`, 302);
+      }
+
+      // If requested key is an image, provide a clean SVG fallback to prevent broken UI and 404 console errors
+      const isImageRequest = /\.(jpe?g|png|webp|svg|gif|avif)$/i.test(key) ||
+        key.startsWith('branding/') ||
+        key.startsWith('products/') ||
+        key.startsWith('uploads/') ||
+        key.startsWith('logos/') ||
+        key.startsWith('banners/');
+
+      if (isImageRequest) {
+        const placeholderSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400" fill="none">
+  <rect width="600" height="400" fill="#f8fafc"/>
+  <rect x="20" y="20" width="560" height="360" rx="16" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="2" stroke-dasharray="8 8"/>
+  <circle cx="300" cy="180" r="44" fill="#e2e8f0"/>
+  <path d="M284 180h32M300 164v32" stroke="#94a3b8" stroke-width="4" stroke-linecap="round"/>
+  <text x="300" y="256" text-anchor="middle" fill="#64748b" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="600">Store Media Asset</text>
+</svg>`;
+        const headers = new Headers();
+        headers.set('Content-Type', 'image/svg+xml; charset=utf-8');
+        headers.set('Cache-Control', 'public, max-age=86400');
+        headers.set('Access-Control-Allow-Origin', '*');
+        return new Response(placeholderSvg, { headers });
       }
 
       return jsonResponse({ success: false, error: { message: 'Media not found or R2 binding not available' } }, 404);
