@@ -1,39 +1,17 @@
-import fs from 'fs';
-import path from 'path';
 import { getRequiredSupabase, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeDatabaseError } from '../lib/errors';
 import { StoreReview, ReviewStats } from '../../src/types';
 import { normalizeMediaUrl } from '../services/r2Storage.service';
 
-const REVIEWS_FILE_PATH = path.join(process.cwd(), 'data/store_reviews.json');
-
-function ensureDirectoryExists(filePath: string) {
-  const dirname = path.dirname(filePath);
-  if (!fs.existsSync(dirname)) {
-    fs.mkdirSync(dirname, { recursive: true });
-  }
-}
+const inMemoryReviews: StoreReview[] = [];
 
 function readAllFallbackReviews(): StoreReview[] {
-  try {
-    if (!fs.existsSync(REVIEWS_FILE_PATH)) {
-      return [];
-    }
-    const raw = fs.readFileSync(REVIEWS_FILE_PATH, 'utf-8');
-    return JSON.parse(raw) || [];
-  } catch (err) {
-    console.error('Error reading reviews fallback store:', err);
-    return [];
-  }
+  return [...inMemoryReviews];
 }
 
 function writeAllFallbackReviews(reviews: StoreReview[]): void {
-  try {
-    ensureDirectoryExists(REVIEWS_FILE_PATH);
-    fs.writeFileSync(REVIEWS_FILE_PATH, JSON.stringify(reviews, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Error writing reviews fallback store:', err);
-  }
+  inMemoryReviews.length = 0;
+  inMemoryReviews.push(...reviews);
 }
 
 // Initial seed reviews for new stores / demo stores

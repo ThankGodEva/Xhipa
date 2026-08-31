@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { createApp } from './server/app';

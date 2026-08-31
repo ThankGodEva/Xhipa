@@ -1,6 +1,3 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 export const config = {
   port: 3000,
   appUrl: (typeof process !== 'undefined' && process.env?.APP_URL) || 'http://localhost:3000',
