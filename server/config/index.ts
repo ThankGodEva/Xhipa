@@ -13,21 +13,36 @@ export const config = {
   paystackPublicKey: (typeof process !== 'undefined' && process.env?.VITE_PAYSTACK_PUBLIC_KEY) || '',
 
   // Cloudflare R2
-  r2AccountId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_ACCOUNT_ID || process.env?.R2_ACCOUNT_ID)) || '',
-  r2AccessKeyId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_ACCESS_KEY_ID || process.env?.R2_ACCESS_KEY_ID)) || '',
-  r2SecretAccessKey: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_SECRET_ACCESS_KEY || process.env?.R2_SECRET_ACCESS_KEY)) || '',
-  r2BucketName: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_BUCKET_NAME || process.env?.R2_BUCKET_NAME)) || '',
-  r2PublicUrl: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_PUBLIC_URL || process.env?.R2_PUBLIC_URL)) || '',
+  r2AccountId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_ACCOUNT_ID || process.env?.R2_ACCOUNT_ID || process.env?.CF_ACCOUNT_ID || process.env?.CLOUDFLARE_ACCOUNT_ID || process.env?.ACCOUNT_ID)) || '',
+  r2AccessKeyId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_ACCESS_KEY_ID || process.env?.R2_ACCESS_KEY_ID || process.env?.AWS_ACCESS_KEY_ID || process.env?.R2_KEY_ID || process.env?.CLOUDFLARE_ACCESS_KEY_ID)) || '',
+  r2SecretAccessKey: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_SECRET_ACCESS_KEY || process.env?.R2_SECRET_ACCESS_KEY || process.env?.AWS_SECRET_ACCESS_KEY || process.env?.R2_SECRET || process.env?.CLOUDFLARE_SECRET_ACCESS_KEY)) || '',
+  r2BucketName: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_BUCKET_NAME || process.env?.R2_BUCKET_NAME || process.env?.CLOUDFLARE_BUCKET_NAME || process.env?.BUCKET_NAME || process.env?.R2_BUCKET)) || 'xhipa-storefront-media',
+  r2PublicUrl: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_PUBLIC_URL || process.env?.R2_PUBLIC_URL || process.env?.PUBLIC_R2_URL || process.env?.CLOUDFLARE_PUBLIC_URL || process.env?.R2_DEV_URL)) || '',
 };
 
 export function setServerConfig(overrides: Partial<typeof config>): void {
   Object.assign(config, overrides);
   if (typeof process !== 'undefined' && process.env) {
-    if (overrides.r2AccountId) process.env.CLOUDFLARE_R2_ACCOUNT_ID = overrides.r2AccountId;
-    if (overrides.r2AccessKeyId) process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = overrides.r2AccessKeyId;
-    if (overrides.r2SecretAccessKey) process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = overrides.r2SecretAccessKey;
-    if (overrides.r2BucketName) process.env.CLOUDFLARE_R2_BUCKET_NAME = overrides.r2BucketName;
-    if (overrides.r2PublicUrl) process.env.CLOUDFLARE_R2_PUBLIC_URL = overrides.r2PublicUrl;
+    if (overrides.r2AccountId) {
+      process.env.CLOUDFLARE_R2_ACCOUNT_ID = overrides.r2AccountId;
+      process.env.R2_ACCOUNT_ID = overrides.r2AccountId;
+    }
+    if (overrides.r2AccessKeyId) {
+      process.env.CLOUDFLARE_R2_ACCESS_KEY_ID = overrides.r2AccessKeyId;
+      process.env.R2_ACCESS_KEY_ID = overrides.r2AccessKeyId;
+    }
+    if (overrides.r2SecretAccessKey) {
+      process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY = overrides.r2SecretAccessKey;
+      process.env.R2_SECRET_ACCESS_KEY = overrides.r2SecretAccessKey;
+    }
+    if (overrides.r2BucketName) {
+      process.env.CLOUDFLARE_R2_BUCKET_NAME = overrides.r2BucketName;
+      process.env.R2_BUCKET_NAME = overrides.r2BucketName;
+    }
+    if (overrides.r2PublicUrl) {
+      process.env.CLOUDFLARE_R2_PUBLIC_URL = overrides.r2PublicUrl;
+      process.env.R2_PUBLIC_URL = overrides.r2PublicUrl;
+    }
   }
 }
 

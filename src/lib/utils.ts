@@ -368,3 +368,55 @@ export async function optimizeImageForUpload(
   });
 }
 
+/**
+ * Normalizes any stored media URL (resolving custom domains, bare keys, and relative proxy routes)
+ */
+export function normalizeMediaUrl(url?: string | null): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  if (trimmed.startsWith('data:')) return trimmed;
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    if (
+      trimmed.includes('media.xhipa.com') ||
+      trimmed.includes('pub-') ||
+      trimmed.includes('your-bucket') ||
+      trimmed.includes('.r2.dev') ||
+      trimmed.includes('.r2.cloudflarestorage.com')
+    ) {
+      const match = trimmed.match(/(branding|products|uploads|general|logos|banners|stories|merchants)\/.+/);
+      if (match) return `/api/media/${match[0]}`;
+    }
+    return trimmed;
+  }
+
+  if (trimmed.startsWith('/')) return trimmed;
+
+  if (trimmed.startsWith('media.xhipa.com/')) {
+    const key = trimmed.replace(/^media\.xhipa\.com\//, '');
+    return `/api/media/${key}`;
+  }
+
+  if (trimmed.includes('.r2.dev/')) {
+    const parts = trimmed.split('.r2.dev/');
+    if (parts[1]) return `/api/media/${parts[1]}`;
+  }
+
+  if (
+    trimmed.startsWith('branding/') ||
+    trimmed.startsWith('products/') ||
+    trimmed.startsWith('uploads/') ||
+    trimmed.startsWith('general/') ||
+    trimmed.startsWith('logos/') ||
+    trimmed.startsWith('banners/') ||
+    trimmed.startsWith('stories/') ||
+    trimmed.startsWith('merchants/')
+  ) {
+    return `/api/media/${trimmed}`;
+  }
+
+  return trimmed;
+}
+

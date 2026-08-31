@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { generateSecureRandomHex } from '../lib/crypto';
+import { config } from '../config';
 
 export interface R2Config {
   accountId: string;
@@ -28,16 +29,62 @@ let s3ClientInstance: S3Client | null = null;
 let lastConfigHash: string = '';
 
 export function getR2Config(): R2Config {
-  const accountId = (process.env.CLOUDFLARE_R2_ACCOUNT_ID || process.env.R2_ACCOUNT_ID || '').trim();
-  const accessKeyId = (process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID || '').trim();
-  const secretAccessKey = (process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || process.env.R2_SECRET_ACCESS_KEY || '').trim();
-  const bucketName = (process.env.CLOUDFLARE_R2_BUCKET_NAME || process.env.R2_BUCKET_NAME || '').trim();
-  const publicUrl = (process.env.CLOUDFLARE_R2_PUBLIC_URL || process.env.R2_PUBLIC_URL || '').trim().replace(/\/$/, '');
+  const accountId = (
+    process.env.CLOUDFLARE_R2_ACCOUNT_ID ||
+    process.env.R2_ACCOUNT_ID ||
+    process.env.CF_ACCOUNT_ID ||
+    process.env.CLOUDFLARE_ACCOUNT_ID ||
+    process.env.ACCOUNT_ID ||
+    (config as any)?.r2AccountId ||
+    ''
+  ).trim();
 
-  const isConfigured = Boolean(accountId && accessKeyId && secretAccessKey && bucketName);
+  const accessKeyId = (
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ||
+    process.env.R2_ACCESS_KEY_ID ||
+    process.env.AWS_ACCESS_KEY_ID ||
+    process.env.R2_KEY_ID ||
+    process.env.CLOUDFLARE_ACCESS_KEY_ID ||
+    (config as any)?.r2AccessKeyId ||
+    ''
+  ).trim();
+
+  const secretAccessKey = (
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ||
+    process.env.R2_SECRET_ACCESS_KEY ||
+    process.env.AWS_SECRET_ACCESS_KEY ||
+    process.env.R2_SECRET ||
+    process.env.R2_SECRET_KEY ||
+    process.env.CLOUDFLARE_SECRET_ACCESS_KEY ||
+    (config as any)?.r2SecretAccessKey ||
+    ''
+  ).trim();
+
+  const bucketName = (
+    process.env.CLOUDFLARE_R2_BUCKET_NAME ||
+    process.env.R2_BUCKET_NAME ||
+    process.env.CLOUDFLARE_BUCKET_NAME ||
+    process.env.BUCKET_NAME ||
+    process.env.R2_BUCKET ||
+    (config as any)?.r2BucketName ||
+    'xhipa-storefront-media'
+  ).trim();
+
+  const publicUrl = (
+    process.env.CLOUDFLARE_R2_PUBLIC_URL ||
+    process.env.R2_PUBLIC_URL ||
+    process.env.PUBLIC_R2_URL ||
+    process.env.CLOUDFLARE_PUBLIC_URL ||
+    process.env.R2_DEV_URL ||
+    (config as any)?.r2PublicUrl ||
+    ''
+  ).trim().replace(/\/$/, '');
+
+  const cleanAccountId = accountId.replace(/^https?:\/\//, '').replace(/\.r2\.cloudflarestorage\.com.*$/, '').trim();
+  const isConfigured = Boolean(cleanAccountId && accessKeyId && secretAccessKey && bucketName);
 
   return {
-    accountId,
+    accountId: cleanAccountId,
     accessKeyId,
     secretAccessKey,
     bucketName,
@@ -47,19 +94,26 @@ export function getR2Config(): R2Config {
 }
 
 export function getR2Client(): S3Client | null {
-  const config = getR2Config();
-  if (!config.isConfigured) {
+  const r2Config = getR2Config();
+  if (!r2Config.isConfigured) {
     return null;
   }
 
-  const currentConfigHash = `${config.accountId}:${config.accessKeyId}:${config.bucketName}`;
+  let endpoint = (process.env.CLOUDFLARE_R2_ENDPOINT || process.env.R2_ENDPOINT || '').trim();
+  if (!endpoint && r2Config.accountId) {
+    endpoint = `https://${r2Config.accountId}.r2.cloudflarestorage.com`;
+  } else if (endpoint && !endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+    endpoint = `https://${endpoint}`;
+  }
+
+  const currentConfigHash = `${r2Config.accountId}:${r2Config.accessKeyId}:${r2Config.bucketName}:${endpoint}`;
   if (!s3ClientInstance || lastConfigHash !== currentConfigHash) {
     s3ClientInstance = new S3Client({
       region: 'auto',
-      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      endpoint,
       credentials: {
-        accessKeyId: config.accessKeyId,
-        secretAccessKey: config.secretAccessKey
+        accessKeyId: r2Config.accessKeyId,
+        secretAccessKey: r2Config.secretAccessKey
       }
     });
     lastConfigHash = currentConfigHash;

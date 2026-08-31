@@ -32,6 +32,7 @@ function getAuthHeader(): Record<string, string> {
 
 import { supabase, isSupabaseConfigured } from './supabase';
 import { DEMO_STORES_MAP } from './demoStores';
+import { normalizeMediaUrl } from './utils';
 
 async function safeParseJson<T = any>(res: Response, fallbackError = 'Request failed'): Promise<T> {
   const contentType = res.headers.get('content-type') || '';
@@ -195,35 +196,79 @@ export const api = {
         const { data: bizData } = await supabase
           .from('businesses')
           .select('*')
-          .eq('slug', cleanSlug)
-          .eq('status', 'active')
+          .ilike('slug', cleanSlug)
           .maybeSingle();
 
-        if (bizData) {
+        if (bizData && bizData.status !== 'suspended') {
           const [storeRes, settingsRes, catRes, prodRes, storyRes] = await Promise.allSettled([
             supabase.from('stores').select('*').eq('business_id', bizData.id).maybeSingle(),
             supabase.from('store_settings').select('*').eq('business_id', bizData.id).maybeSingle(),
             supabase.from('categories').select('*').eq('business_id', bizData.id).eq('is_active', true),
-            supabase.from('products').select('*').eq('business_id', bizData.id).eq('status', 'published'),
+            supabase.from('products').select('*').eq('business_id', bizData.id).neq('status', 'archived'),
             supabase.from('store_stories').select('*').eq('business_id', bizData.id)
           ]);
 
-          const storeData = storeRes.status === 'fulfilled' ? storeRes.value.data : null;
-          const settingsData = settingsRes.status === 'fulfilled' ? settingsRes.value.data : null;
+          let storeData = storeRes.status === 'fulfilled' ? storeRes.value.data : null;
+          let settingsData = settingsRes.status === 'fulfilled' ? settingsRes.value.data : null;
           const catData = catRes.status === 'fulfilled' ? (catRes.value.data || []) : [];
-          const prodData = prodRes.status === 'fulfilled' ? (prodRes.value.data || []) : [];
+          const rawProdData = prodRes.status === 'fulfilled' ? (prodRes.value.data || []) : [];
           const storyData = storyRes.status === 'fulfilled' ? (storyRes.value.data || []) : [];
 
-          if (storeData && settingsData && storeData.status === 'published') {
-            return {
-              business: bizData,
-              store: storeData,
-              settings: settingsData,
-              categories: catData,
-              products: prodData,
-              stories: storyData
+          if (!storeData) {
+            storeData = {
+              id: `store_${bizData.id}`,
+              business_id: bizData.id,
+              slug: bizData.slug || cleanSlug,
+              status: 'published',
+              published_at: bizData.created_at || new Date().toISOString(),
+              created_at: bizData.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString()
             };
           }
+
+          if (!settingsData) {
+            settingsData = {
+              id: `settings_${bizData.id}`,
+              business_id: bizData.id,
+              theme: 'modern',
+              primary_color: '#059669',
+              show_logo: true,
+              show_phone: true,
+              show_whatsapp: true,
+              show_social_links: true,
+              enable_catalogue: true,
+              enable_checkout: true,
+              delivery_fee_type: 'flat',
+              flat_delivery_fee: 0,
+              delivery_information: '',
+              return_policy: '',
+              privacy_policy: '',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          }
+
+          // Normalize product image URLs for Cloudflare R2 bucket compatibility
+          const prodData = rawProdData.map((p: any) => ({
+            ...p,
+            images: (p.images || []).map((img: any) => ({
+              ...img,
+              public_url: normalizeMediaUrl(img.public_url || img.url)
+            }))
+          }));
+
+          return {
+            business: {
+              ...bizData,
+              logo_url: normalizeMediaUrl(bizData.logo_url),
+              banner_url: normalizeMediaUrl(bizData.banner_url)
+            },
+            store: storeData,
+            settings: settingsData,
+            categories: catData,
+            products: prodData,
+            stories: storyData
+          };
         }
       } catch (supabaseErr) {
         console.warn('Client-side Supabase direct storefront fetch failed:', supabaseErr);
@@ -972,7 +1017,40 @@ export const api = {
       });
     } catch (b64Err) {
       console.warn('Base64 R2 upload fallback failed:', b64Err);
-      // 3. Ultimate resilient fallback: return data URL
+
+      // 3. Direct client-side Supabase storage attempt if configured
+      if (isSupabaseConfigured) {
+        try {
+          const folder = options?.folder || 'uploads';
+          const ext = filename.includes('.') ? filename.split('.').pop()?.toLowerCase() || 'jpg' : 'jpg';
+          const storageKey = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('storefront-media')
+            .upload(storageKey, file, {
+              contentType: file.type || 'image/jpeg',
+              upsert: true
+            });
+
+          if (uploadData && !uploadError) {
+            const { data: publicUrlData } = supabase.storage
+              .from('storefront-media')
+              .getPublicUrl(storageKey);
+
+            return {
+              url: publicUrlData.publicUrl || `/api/media/${storageKey}`,
+              key: storageKey,
+              filename,
+              mimetype: file.type || 'image/jpeg',
+              size: file.size,
+              storage: 'supabase-storage'
+            };
+          }
+        } catch (storageErr) {
+          console.warn('Direct Supabase storage upload fallback failed:', storageErr);
+        }
+      }
+
+      // 4. Ultimate resilient fallback: return data URL
       const fallbackDataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
