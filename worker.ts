@@ -10,6 +10,9 @@
 
 import { generateSecureRandomHex, timingSafeEqualStrings, computeHmacSha512Hex } from './server/lib/crypto';
 import { createClient } from '@supabase/supabase-js';
+import { setSupabaseAdminClient } from './server/lib/supabase';
+import { setServerConfig } from './server/config';
+import { handleWorkerApiRoute } from './server/workerRouter';
 
 export interface R2HttpMetadata {
   contentType?: string;
@@ -84,6 +87,22 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
+
+    // Initialize dynamic environment variables and Supabase Admin client for Worker runtime
+    if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+      setSupabaseAdminClient(supabase);
+    }
+    setServerConfig({
+      supabaseUrl: env.SUPABASE_URL || '',
+      supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY || '',
+      supabaseAnonKey: env.SUPABASE_ANON_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '',
+      paystackSecretKey: env.PAYSTACK_SECRET_KEY || '',
+      paystackPublicKey: env.PAYSTACK_PUBLIC_KEY || '',
+      appUrl: env.APP_URL || url.origin || 'https://xhipa.com'
+    });
 
     // 1. Handle CORS Preflight
     if (method === 'OPTIONS') {
@@ -364,7 +383,13 @@ export default {
       return jsonResponse({ success: true, message: 'Webhook processed' });
     }
 
-    // 7. API 404 Handler - strictly ensures /api/* requests return JSON 404 and never SPA index.html
+    // 7. Full API Router Dispatch (Storefront, Orders, Payments, Merchant, Subscriptions, Auth, Affiliate, Admin)
+    const apiResponse = await handleWorkerApiRoute(request, url);
+    if (apiResponse) {
+      return apiResponse;
+    }
+
+    // 8. API 404 Handler - strictly ensures /api/* requests return JSON 404 and never SPA index.html
     if (url.pathname.startsWith('/api/')) {
       return jsonResponse({
         success: false,

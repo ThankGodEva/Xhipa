@@ -1,39 +1,57 @@
-import fs from 'fs';
-import path from 'path';
-
 interface BusinessMetaRecord {
   banner_url?: string;
   [key: string]: any;
 }
 
-const META_FILE_PATH = path.join(process.cwd(), 'data/business_metadata.json');
+const memoryMetadataStore = new Map<string, BusinessMetaRecord>();
 
-function ensureDirectoryExists(filePath: string) {
-  const dirname = path.dirname(filePath);
-  if (!fs.existsSync(dirname)) {
-    fs.mkdirSync(dirname, { recursive: true });
-  }
+function isNodeEnvironment(): boolean {
+  return typeof process !== 'undefined' && Boolean(process.versions?.node);
 }
 
 function readAllMetadata(): Record<string, BusinessMetaRecord> {
+  if (!isNodeEnvironment()) {
+    const obj: Record<string, BusinessMetaRecord> = {};
+    memoryMetadataStore.forEach((v, k) => { obj[k] = v; });
+    return obj;
+  }
+
   try {
-    if (!fs.existsSync(META_FILE_PATH)) {
+    const fs = require('fs');
+    const path = require('path');
+    const metaFilePath = path.join(process.cwd(), 'data/business_metadata.json');
+    if (!fs.existsSync(metaFilePath)) {
       return {};
     }
-    const raw = fs.readFileSync(META_FILE_PATH, 'utf-8');
+    const raw = fs.readFileSync(metaFilePath, 'utf-8');
     return JSON.parse(raw) || {};
   } catch (err) {
-    console.error('Error reading business metadata store:', err);
-    return {};
+    const obj: Record<string, BusinessMetaRecord> = {};
+    memoryMetadataStore.forEach((v, k) => { obj[k] = v; });
+    return obj;
   }
 }
 
 function writeAllMetadata(data: Record<string, BusinessMetaRecord>): void {
+  Object.entries(data).forEach(([k, v]) => {
+    memoryMetadataStore.set(k, v);
+  });
+
+  if (!isNodeEnvironment()) {
+    return;
+  }
+
   try {
-    ensureDirectoryExists(META_FILE_PATH);
-    fs.writeFileSync(META_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+    const fs = require('fs');
+    const path = require('path');
+    const metaFilePath = path.join(process.cwd(), 'data/business_metadata.json');
+    const dirname = path.dirname(metaFilePath);
+    if (!fs.existsSync(dirname)) {
+      fs.mkdirSync(dirname, { recursive: true });
+    }
+    fs.writeFileSync(metaFilePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
-    console.error('Error writing business metadata store:', err);
+    // ignore
   }
 }
 

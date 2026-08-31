@@ -4,6 +4,10 @@ import { DatabaseError } from './errors';
 
 let supabaseAdminClient: SupabaseClient | null = null;
 
+export function setSupabaseAdminClient(client: SupabaseClient | null): void {
+  supabaseAdminClient = client;
+}
+
 export function isSupabaseConfigured(): boolean {
   return Boolean(
     config.supabaseUrl &&
