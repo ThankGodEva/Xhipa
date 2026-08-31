@@ -180,16 +180,31 @@ export default {
 
       const keyParts = key.split('/');
       const filename = keyParts[keyParts.length - 1];
+      const subpath1 = keyParts.slice(1).join('/');
+      const subpath2 = keyParts.slice(2).join('/');
+
       const candidateKeys = Array.from(
         new Set([
-          key,
+          `/${key}`, // EXACT match for keys stored with leading slash in Cloudflare R2 bucket
+          key,       // Key without leading slash
+          `/${filename}`,
           filename,
-          keyParts.slice(1).join('/'),
-          keyParts.slice(2).join('/'),
+          `/${subpath1}`,
+          subpath1,
+          `/${subpath2}`,
+          subpath2,
+          `/branding/${filename}`,
           `branding/${filename}`,
+          `/products/${filename}`,
           `products/${filename}`,
+          `/uploads/${filename}`,
           `uploads/${filename}`,
-          `general/${filename}`
+          `/general/${filename}`,
+          `general/${filename}`,
+          `/media/${key}`,
+          `media/${key}`,
+          `/api/media/${key}`,
+          `api/media/${key}`
         ])
       ).filter(Boolean);
 

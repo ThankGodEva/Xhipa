@@ -297,18 +297,34 @@ export async function getMediaFromR2(key: string): Promise<{
   const config = getR2Config();
   const client = getR2Client();
 
-  const keyParts = key.split('/');
+  const keyParts = key.replace(/^\/+/, '').split('/');
+  const cleanKey = key.replace(/^\/+/, '');
   const filename = keyParts[keyParts.length - 1];
+  const subpath1 = keyParts.slice(1).join('/');
+  const subpath2 = keyParts.slice(2).join('/');
+
   const candidateKeys = Array.from(
     new Set([
-      key,
+      `/${cleanKey}`, // EXACT match for keys stored with leading slash in Cloudflare R2 bucket
+      cleanKey,       // Key without leading slash
+      `/${filename}`,
       filename,
-      keyParts.slice(1).join('/'),
-      keyParts.slice(2).join('/'),
+      `/${subpath1}`,
+      subpath1,
+      `/${subpath2}`,
+      subpath2,
+      `/branding/${filename}`,
       `branding/${filename}`,
+      `/products/${filename}`,
       `products/${filename}`,
+      `/uploads/${filename}`,
       `uploads/${filename}`,
-      `general/${filename}`
+      `/general/${filename}`,
+      `general/${filename}`,
+      `/media/${cleanKey}`,
+      `media/${cleanKey}`,
+      `/api/media/${cleanKey}`,
+      `api/media/${cleanKey}`
     ])
   ).filter(Boolean);
 
@@ -379,15 +395,16 @@ export async function deleteMediaFromR2(key: string): Promise<boolean> {
   const config = getR2Config();
   const client = getR2Client();
 
-  fallbackStorage.delete(key);
+  const cleanKey = key.replace(/^\/+/, '');
+  fallbackStorage.delete(cleanKey);
+  fallbackStorage.delete(`/${cleanKey}`);
 
   if (client && config.isConfigured) {
     try {
-      const command = new DeleteObjectCommand({
-        Bucket: config.bucketName,
-        Key: key
-      });
-      await client.send(command);
+      await Promise.allSettled([
+        client.send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: cleanKey })),
+        client.send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: `/${cleanKey}` }))
+      ]);
       return true;
     } catch (err) {
       console.error('Error deleting from Cloudflare R2:', err);
