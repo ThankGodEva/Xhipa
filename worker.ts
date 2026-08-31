@@ -50,7 +50,9 @@ export interface Env {
   PAYSTACK_PUBLIC_KEY?: string;
   R2_BUCKET?: R2Bucket;
   R2_PUBLIC_URL?: string;
+  CLOUDFLARE_R2_PUBLIC_URL?: string;
   ASSETS?: Fetcher;
+  [key: string]: any;
 }
 
 export interface ExecutionContext {
@@ -158,26 +160,31 @@ export default {
         return jsonResponse({ success: false, error: { message: 'Invalid or missing media key.' } }, 404);
       }
 
-      if (env.R2_BUCKET) {
+      const r2 = env.R2_BUCKET || (env as any).BUCKET || (env as any).MEDIA_BUCKET || (env as any).STORE_ASSETS || (env as any).R2;
+      const publicBaseUrl = (env.CLOUDFLARE_R2_PUBLIC_URL || env.R2_PUBLIC_URL || (env as any).PUBLIC_R2_URL || '').replace(/\/$/, '');
+
+      if (r2) {
         try {
-          const object = await env.R2_BUCKET.get(key);
-          if (!object) {
-            return jsonResponse({ success: false, error: { message: 'Media not found in R2 bucket.' } }, 404);
+          const object = await r2.get(key);
+          if (object) {
+            const headers = new Headers();
+            object.writeHttpMetadata(headers);
+            headers.set('etag', object.httpEtag);
+            headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+            headers.set('Access-Control-Allow-Origin', '*');
+
+            return new Response(object.body, { headers });
           }
-
-          const headers = new Headers();
-          object.writeHttpMetadata(headers);
-          headers.set('etag', object.httpEtag);
-          headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-          headers.set('Access-Control-Allow-Origin', '*');
-
-          return new Response(object.body, { headers });
         } catch (err: any) {
-          return jsonResponse({ success: false, error: { message: err.message || 'R2 read error' } }, 500);
+          console.warn('[Worker R2] R2 get error for key:', key, err);
         }
       }
 
-      return jsonResponse({ success: false, error: { message: 'R2 bucket binding not configured in Worker' } }, 503);
+      if (publicBaseUrl) {
+        return Response.redirect(`${publicBaseUrl}/${key}`, 302);
+      }
+
+      return jsonResponse({ success: false, error: { message: 'Media not found or R2 binding not available' } }, 404);
     }
 
     // 5. Cloudflare R2 Media Upload (POST /api/media/upload) using Native FormData / ArrayBuffer

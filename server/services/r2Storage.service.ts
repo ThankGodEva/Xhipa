@@ -314,8 +314,14 @@ export function normalizeMediaUrl(url?: string | null): string {
   if (trimmed.startsWith('data:')) return trimmed;
 
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    if (trimmed.includes('media.xhipa.com') || trimmed.includes('pub-xxxx') || trimmed.includes('your-bucket')) {
-      const match = trimmed.match(/(branding|products|uploads|general)\/.+/);
+    if (
+      trimmed.includes('media.xhipa.com') ||
+      trimmed.includes('pub-') ||
+      trimmed.includes('your-bucket') ||
+      trimmed.includes('.r2.dev') ||
+      trimmed.includes('.r2.cloudflarestorage.com')
+    ) {
+      const match = trimmed.match(/(branding|products|uploads|general|logos|banners|stories|merchants)\/.+/);
       if (match) return `/api/media/${match[0]}`;
     }
     return trimmed;
@@ -337,7 +343,11 @@ export function normalizeMediaUrl(url?: string | null): string {
     trimmed.startsWith('branding/') ||
     trimmed.startsWith('products/') ||
     trimmed.startsWith('uploads/') ||
-    trimmed.startsWith('general/')
+    trimmed.startsWith('general/') ||
+    trimmed.startsWith('logos/') ||
+    trimmed.startsWith('banners/') ||
+    trimmed.startsWith('stories/') ||
+    trimmed.startsWith('merchants/')
   ) {
     return `/api/media/${trimmed}`;
   }

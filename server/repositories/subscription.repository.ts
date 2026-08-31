@@ -1,13 +1,123 @@
-import { getRequiredSupabase } from '../lib/supabase';
+import { getRequiredSupabase, getSupabaseAdmin, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeDatabaseError } from '../lib/errors';
 import { Subscription, SubscriptionPlan, SubscriptionStatus } from '../../src/types';
 
+export const DEFAULT_SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
+  {
+    id: 'free',
+    name: 'Free Starter',
+    description: 'Perfect for new sellers starting their digital storefront journey.',
+    price_monthly: 0,
+    currency: 'NGN',
+    max_products: 10,
+    can_checkout: false,
+    remove_branding: false,
+    custom_domain: false,
+    advanced_analytics: false,
+    is_active: true,
+    features: [
+      '10 Products',
+      'No Categories',
+      'WhatsApp Ordering',
+      'Mobile-optimized storefront'
+    ]
+  },
+  {
+    id: 'beginner',
+    name: 'Beginner',
+    description: 'Great for growing micro-merchants needing more product catalog capacity.',
+    price_monthly: 135000,
+    currency: 'NGN',
+    max_products: 30,
+    can_checkout: false,
+    remove_branding: false,
+    custom_domain: false,
+    advanced_analytics: false,
+    is_active: true,
+    features: [
+      '30 Products',
+      'No Categories',
+      'WhatsApp Ordering',
+      'Mobile-optimized storefront'
+    ]
+  },
+  {
+    id: 'whatsapp_starter',
+    name: 'WhatsApp Starter',
+    description: 'Clean unbranded catalog with rich analytics tailored for social commerce.',
+    price_monthly: 299999,
+    currency: 'NGN',
+    max_products: 50,
+    can_checkout: false,
+    remove_branding: true,
+    custom_domain: false,
+    advanced_analytics: true,
+    is_active: true,
+    features: [
+      '50 Products',
+      'Multiple Product Categories',
+      'WhatsApp Ordering',
+      'Remove Xhipa Branding',
+      'Advanced Analytics'
+    ]
+  },
+  {
+    id: 'starter',
+    name: 'Starter Direct Pay',
+    description: 'Empower your customers with direct card/bank checkout and custom branding.',
+    price_monthly: 500000,
+    currency: 'NGN',
+    max_products: 100,
+    can_checkout: true,
+    remove_branding: true,
+    custom_domain: true,
+    advanced_analytics: true,
+    is_active: true,
+    features: [
+      '100 Products',
+      'Multiple Product Categories',
+      'Online Direct Checkout',
+      'Remove Xhipa Branding',
+      'Custom Domain Support',
+      'Advanced Analytics'
+    ]
+  },
+  {
+    id: 'business',
+    name: 'Business Pro',
+    description: 'Unlimited catalog scale, zero limits, and premier priority processing.',
+    price_monthly: 1500000,
+    currency: 'NGN',
+    max_products: -1,
+    can_checkout: true,
+    remove_branding: true,
+    custom_domain: true,
+    advanced_analytics: true,
+    is_active: true,
+    features: [
+      'Unlimited Products',
+      'Multiple Product Categories',
+      'Online Direct Checkout',
+      'Remove Xhipa Branding',
+      'Custom Domain Support',
+      'Advanced Analytics & Priority Support'
+    ]
+  }
+];
+
 export class SubscriptionRepository {
   /**
-   * Get all active subscription plans
+   * Get all active subscription plans with fallback to defaults
    */
   async getPlans(): Promise<SubscriptionPlan[]> {
-    const supabase = getRequiredSupabase();
+    if (!isSupabaseConfigured()) {
+      return DEFAULT_SUBSCRIPTION_PLANS;
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return DEFAULT_SUBSCRIPTION_PLANS;
+    }
 
     try {
       const { data, error } = await supabase
@@ -16,7 +126,9 @@ export class SubscriptionRepository {
         .eq('is_active', true)
         .order('price_monthly', { ascending: true });
 
-      if (error) throw error;
+      if (error || !data || data.length === 0) {
+        return DEFAULT_SUBSCRIPTION_PLANS;
+      }
 
       return (data || []).map((p: any) => ({
         id: p.id as SubscriptionPlan['id'],
@@ -38,7 +150,8 @@ export class SubscriptionRepository {
         ]
       }));
     } catch (err) {
-      throw normalizeDatabaseError(err);
+      console.warn('[SubscriptionRepository] Failed to query subscription_plans, returning defaults:', err);
+      return DEFAULT_SUBSCRIPTION_PLANS;
     }
   }
 
@@ -46,17 +159,28 @@ export class SubscriptionRepository {
    * Get a plan by ID
    */
   async getPlanById(planId: string): Promise<SubscriptionPlan | null> {
-    const supabase = getRequiredSupabase();
+    if (!planId) return null;
+    const cleanId = planId.toLowerCase().trim();
+
+    if (!isSupabaseConfigured()) {
+      return DEFAULT_SUBSCRIPTION_PLANS.find(p => p.id === cleanId) || null;
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return DEFAULT_SUBSCRIPTION_PLANS.find(p => p.id === cleanId) || null;
+    }
 
     try {
       const { data, error } = await supabase
         .from('subscription_plans')
         .select('*')
-        .eq('id', planId)
+        .eq('id', cleanId)
         .maybeSingle();
 
-      if (error) throw error;
-      if (!data) return null;
+      if (error || !data) {
+        return DEFAULT_SUBSCRIPTION_PLANS.find(p => p.id === cleanId) || null;
+      }
 
       return {
         id: data.id as SubscriptionPlan['id'],
@@ -78,7 +202,8 @@ export class SubscriptionRepository {
         ]
       };
     } catch (err) {
-      throw normalizeDatabaseError(err);
+      console.warn(`[SubscriptionRepository] Plan lookup error for "${planId}", using fallback:`, err);
+      return DEFAULT_SUBSCRIPTION_PLANS.find(p => p.id === cleanId) || null;
     }
   }
 
@@ -86,7 +211,24 @@ export class SubscriptionRepository {
    * Get subscription for a business
    */
   async getSubscriptionByBusinessId(businessId: string): Promise<Subscription | null> {
-    const supabase = getRequiredSupabase();
+    if (!businessId) return null;
+
+    if (!isSupabaseConfigured()) {
+      return {
+        id: `sub_${businessId}`,
+        business_id: businessId,
+        plan_id: 'free',
+        status: 'active',
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        plan: DEFAULT_SUBSCRIPTION_PLANS[0],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return null;
 
     try {
       const { data, error } = await supabase
@@ -95,8 +237,19 @@ export class SubscriptionRepository {
         .eq('business_id', businessId)
         .maybeSingle();
 
-      if (error) throw error;
-      if (!data) return null;
+      if (error || !data) {
+        return {
+          id: `sub_${businessId}`,
+          business_id: businessId,
+          plan_id: 'free',
+          status: 'active',
+          current_period_start: new Date().toISOString(),
+          current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          plan: DEFAULT_SUBSCRIPTION_PLANS[0],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      }
 
       const plan = data.subscription_plans ? {
         id: data.subscription_plans.id,
@@ -116,7 +269,7 @@ export class SubscriptionRepository {
           data.subscription_plans.can_checkout ? 'Online Direct Checkout' : 'WhatsApp Ordering',
           'Mobile-optimized storefront'
         ]
-      } : undefined;
+      } : (DEFAULT_SUBSCRIPTION_PLANS.find(p => p.id === data.plan_id) || DEFAULT_SUBSCRIPTION_PLANS[0]);
 
       return {
         id: data.id,
@@ -132,7 +285,18 @@ export class SubscriptionRepository {
         updated_at: data.updated_at
       };
     } catch (err) {
-      throw normalizeDatabaseError(err);
+      console.warn('[SubscriptionRepository] Database getSubscriptionByBusinessId error:', err);
+      return {
+        id: `sub_${businessId}`,
+        business_id: businessId,
+        plan_id: 'free',
+        status: 'active',
+        current_period_start: new Date().toISOString(),
+        current_period_end: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        plan: DEFAULT_SUBSCRIPTION_PLANS[0],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
     }
   }
 

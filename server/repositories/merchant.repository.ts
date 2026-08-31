@@ -1,4 +1,4 @@
-import { getRequiredSupabase } from '../lib/supabase';
+import { getRequiredSupabase, getSupabaseAdmin, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeDatabaseError } from '../lib/errors';
 import { Business, BusinessMember, Store, StoreSettings } from '../../src/types';
 import { getBusinessMetadata, setBusinessMetadata } from '../lib/metadataStore';
@@ -132,30 +132,64 @@ export class MerchantRepository {
   }
 
   /**
-   * Find business by slug
+   * Find business by slug (searches businesses and stores tables case-insensitively)
    */
   async getBusinessBySlug(slug: string): Promise<Business | null> {
-    const cleanSlug = slug.toLowerCase().trim();
-    const supabase = getRequiredSupabase();
+    const cleanSlug = (slug || '').toLowerCase().trim();
+    if (!cleanSlug) return null;
+
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return null;
 
     try {
+      // 1. Try finding by businesses.slug
       const { data, error } = await supabase
         .from('businesses')
         .select('*')
-        .eq('slug', cleanSlug)
+        .ilike('slug', cleanSlug)
         .maybeSingle();
 
-      if (error) throw error;
-      if (!data) return null;
-
-      const biz = data as Business;
-      const meta = getBusinessMetadata(biz.id);
-      if (!biz.banner_url && meta.banner_url) {
-        biz.banner_url = meta.banner_url;
+      if (data) {
+        const biz = data as Business;
+        const meta = getBusinessMetadata(biz.id);
+        if (!biz.banner_url && meta.banner_url) {
+          biz.banner_url = meta.banner_url;
+        }
+        return biz;
       }
-      return biz;
+
+      // 2. Also check if stores table matches this slug
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('business_id')
+        .ilike('slug', cleanSlug)
+        .maybeSingle();
+
+      if (storeData && storeData.business_id) {
+        const { data: bizByStore } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('id', storeData.business_id)
+          .maybeSingle();
+
+        if (bizByStore) {
+          const biz = bizByStore as Business;
+          const meta = getBusinessMetadata(biz.id);
+          if (!biz.banner_url && meta.banner_url) {
+            biz.banner_url = meta.banner_url;
+          }
+          return biz;
+        }
+      }
+
+      return null;
     } catch (err) {
-      throw normalizeDatabaseError(err);
+      console.warn(`[MerchantRepository] getBusinessBySlug lookup error for "${cleanSlug}":`, err);
+      return null;
     }
   }
 

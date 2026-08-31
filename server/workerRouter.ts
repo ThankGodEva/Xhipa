@@ -4,7 +4,7 @@ import { orderRepository } from './repositories/order.repository';
 import { merchantRepository } from './repositories/merchant.repository';
 import { productRepository } from './repositories/product.repository';
 import { storyRepository } from './repositories/story.repository';
-import { subscriptionRepository } from './repositories/subscription.repository';
+import { subscriptionRepository, DEFAULT_SUBSCRIPTION_PLANS } from './repositories/subscription.repository';
 import { adminRepository } from './repositories/admin.repository';
 import { affiliateRepository } from './repositories/affiliate.repository';
 import { orderService } from './services/order.service';
@@ -220,7 +220,7 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
   // GET /api/storefront/:slug
   const storefrontMatch = path.match(/^\/api\/storefront\/([^\/]+)$/);
   if (storefrontMatch && method === 'GET') {
-    const slug = storefrontMatch[1];
+    const slug = decodeURIComponent(storefrontMatch[1]);
     try {
       const bundle = await storeService.getPublicStorefront(slug);
       if (!bundle) {
@@ -228,6 +228,7 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
       }
       return json({ success: true, data: bundle });
     } catch (err: any) {
+      console.error(`[WorkerRouter] Error loading storefront for "${slug}":`, err);
       return json({ success: false, error: { code: 'INTERNAL_ERROR', message: err.message || 'Failed to load storefront.' } }, 500);
     }
   }
@@ -347,7 +348,8 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
       const plans = await subscriptionRepository.getPlans();
       return json({ success: true, data: plans });
     } catch (err: any) {
-      return json({ success: false, error: { message: err.message || 'Failed to retrieve plans.' } }, 500);
+      console.warn('[WorkerRouter] Failed to retrieve plans from DB, serving defaults:', err);
+      return json({ success: true, data: DEFAULT_SUBSCRIPTION_PLANS });
     }
   }
 
@@ -357,7 +359,17 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
       const settings = await adminRepository.getPlatformSettings();
       return json({ success: true, data: settings });
     } catch (err: any) {
-      return json({ success: false, error: { message: err.message || 'Failed to retrieve platform settings.' } }, 500);
+      console.warn('[WorkerRouter] Failed to retrieve platform settings from DB, serving defaults:', err);
+      return json({
+        success: true,
+        data: {
+          platform_name: 'Xhipa Storefront SaaS',
+          support_email: 'support@xhipa.ng',
+          maintenance_mode: false,
+          show_affiliate_button: true,
+          affiliate_program_enabled: true
+        }
+      });
     }
   }
 

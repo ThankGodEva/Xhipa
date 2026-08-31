@@ -19,7 +19,7 @@ export class StoreService {
 
     // 1. Resolve business by slug
     const business = await merchantRepository.getBusinessBySlug(cleanSlug);
-    if (!business || business.status !== 'active') {
+    if (!business || (business.status && business.status === 'suspended')) {
       return null;
     }
 
@@ -40,24 +40,65 @@ export class StoreService {
       storyRepository.getStoriesByBusinessId(business.id)
     ]);
 
-    const store = storeRes.status === 'fulfilled' ? storeRes.value : null;
-    const settings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+    let store = storeRes.status === 'fulfilled' ? storeRes.value : null;
+    let settings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
     const categories = categoriesRes.status === 'fulfilled' ? (categoriesRes.value || []) : [];
-    const products = productsRes.status === 'fulfilled' ? (productsRes.value || []) : [];
+    const rawProducts = productsRes.status === 'fulfilled' ? (productsRes.value || []) : [];
     const stories = storiesRes.status === 'fulfilled' ? (storiesRes.value || []) : [];
 
-    if (!store || !settings) {
-      return null;
+    // Fallback store record if not yet created in db
+    if (!store) {
+      store = {
+        id: `store_${business.id}`,
+        business_id: business.id,
+        slug: business.slug || cleanSlug,
+        status: 'published',
+        published_at: business.created_at || new Date().toISOString(),
+        created_at: business.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+    }
+
+    // Fallback settings if not yet created in db
+    if (!settings) {
+      settings = {
+        id: `settings_${business.id}`,
+        business_id: business.id,
+        theme: 'modern',
+        primary_color: '#059669',
+        show_logo: true,
+        show_phone: true,
+        show_whatsapp: true,
+        show_social_links: true,
+        enable_catalogue: true,
+        enable_checkout: true,
+        delivery_fee_type: 'flat',
+        flat_delivery_fee: 0,
+        delivery_information: '',
+        return_policy: '',
+        privacy_policy: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
     }
 
     if (settings.banner_url) {
       settings.banner_url = normalizeMediaUrl(settings.banner_url);
     }
 
-    // Only allow active published store
-    if (store.status !== 'published') {
+    // Only exclude if explicitly archived or draft
+    if (store.status === 'archived' || store.status === 'draft') {
       return null;
     }
+
+    // Normalize product image URLs
+    const products = rawProducts.map(p => ({
+      ...p,
+      images: (p.images || []).map(img => ({
+        ...img,
+        public_url: normalizeMediaUrl(img.public_url || (img as any).url)
+      }))
+    }));
 
     return {
       business,

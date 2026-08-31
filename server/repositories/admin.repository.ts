@@ -1,6 +1,7 @@
-import { getRequiredSupabase } from '../lib/supabase';
+import { getRequiredSupabase, getSupabaseAdmin, isSupabaseConfigured } from '../lib/supabase';
 import { normalizeDatabaseError } from '../lib/errors';
-import { Business, SubscriptionPlan } from '../../src/types';
+import { Business, PlatformSettings, SubscriptionPlan } from '../../src/types';
+import { DEFAULT_SUBSCRIPTION_PLANS } from './subscription.repository';
 
 export interface AdminPlatformMetrics {
   totalBusinesses: number;
@@ -20,15 +21,6 @@ export interface AdminBusinessDetail extends Business {
   ownerEmail: string;
   productsCount: number;
   ordersCount: number;
-}
-
-export interface PlatformSettings {
-  platform_name?: string;
-  support_email?: string;
-  maintenance_mode?: boolean;
-  show_affiliate_button?: boolean;
-  affiliate_program_enabled?: boolean;
-  [key: string]: any;
 }
 
 export class AdminRepository {
@@ -218,7 +210,14 @@ export class AdminRepository {
       affiliate_program_enabled: true
     };
 
-    const supabase = getRequiredSupabase();
+    if (!isSupabaseConfigured()) {
+      return defaultSettings;
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return defaultSettings;
+    }
 
     try {
       const { data, error } = await supabase
@@ -227,37 +226,14 @@ export class AdminRepository {
         .eq('key', 'general')
         .maybeSingle();
 
-      if (error) {
-        // Gracefully return default settings if platform_settings table has not been created or schema cache is refreshing
-        if (
-          error.code === 'PGRST204' ||
-          error.code === 'PGRST205' ||
-          error.code === '42P01' ||
-          error.message?.includes('platform_settings') ||
-          error.message?.includes('schema cache')
-        ) {
-          console.warn('[AdminRepository] platform_settings table not present in schema cache. Falling back to default settings.');
-          return defaultSettings;
-        }
-        throw error;
-      }
-
-      if (!data || !data.value) {
+      if (error || !data || !data.value) {
         return defaultSettings;
       }
 
       return { ...defaultSettings, ...(data.value as Partial<PlatformSettings>) };
     } catch (err: any) {
-      if (
-        err?.code === 'PGRST204' ||
-        err?.code === 'PGRST205' ||
-        err?.code === '42P01' ||
-        err?.message?.includes('platform_settings') ||
-        err?.message?.includes('schema cache')
-      ) {
-        return defaultSettings;
-      }
-      throw normalizeDatabaseError(err);
+      console.warn('[AdminRepository] Failed to retrieve platform_settings from DB, serving defaults:', err);
+      return defaultSettings;
     }
   }
 
@@ -315,7 +291,14 @@ export class AdminRepository {
    * Retrieve all subscription plans for admin management
    */
   async getAllSubscriptionPlans(): Promise<SubscriptionPlan[]> {
-    const supabase = getRequiredSupabase();
+    if (!isSupabaseConfigured()) {
+      return DEFAULT_SUBSCRIPTION_PLANS;
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return DEFAULT_SUBSCRIPTION_PLANS;
+    }
 
     try {
       const { data, error } = await supabase
@@ -323,7 +306,9 @@ export class AdminRepository {
         .select('*')
         .order('price_monthly', { ascending: true });
 
-      if (error) throw error;
+      if (error || !data || data.length === 0) {
+        return DEFAULT_SUBSCRIPTION_PLANS;
+      }
 
       return (data || []).map((p: any) => ({
         id: p.id,
@@ -345,7 +330,8 @@ export class AdminRepository {
         ]
       }));
     } catch (err) {
-      throw normalizeDatabaseError(err);
+      console.warn('[AdminRepository] Failed to query subscription_plans, returning defaults:', err);
+      return DEFAULT_SUBSCRIPTION_PLANS;
     }
   }
 

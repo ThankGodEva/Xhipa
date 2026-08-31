@@ -201,10 +201,13 @@ export interface SubscriptionPlan {
 }
 
 export interface PlatformSettings {
+  platform_name?: string;
+  support_email?: string;
   show_affiliate_button: boolean;
   affiliate_program_enabled: boolean;
   maintenance_mode?: boolean;
   updated_at?: string;
+  [key: string]: any;
 }
 
 export interface Entitlements {
