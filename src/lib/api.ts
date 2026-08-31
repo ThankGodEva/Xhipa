@@ -30,6 +30,7 @@ function getAuthHeader(): Record<string, string> {
   return headers;
 }
 
+import { supabase, isSupabaseConfigured } from './supabase';
 import { DEMO_STORES_MAP } from './demoStores';
 
 async function safeParseJson<T = any>(res: Response, fallbackError = 'Request failed'): Promise<T> {
@@ -185,7 +186,42 @@ export const api = {
         return data.data;
       }
     } catch (err) {
-      console.warn('Backend storefront fetch failed, checking demo stores:', err);
+      console.warn('Backend storefront fetch failed, checking fallbacks:', err);
+    }
+
+    // Direct Supabase query fallback
+    if (isSupabaseConfigured && cleanSlug) {
+      try {
+        const { data: bizData } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('slug', cleanSlug)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (bizData) {
+          const [storeRes, settingsRes, catRes, prodRes, storyRes] = await Promise.all([
+            supabase.from('stores').select('*').eq('business_id', bizData.id).maybeSingle(),
+            supabase.from('store_settings').select('*').eq('business_id', bizData.id).maybeSingle(),
+            supabase.from('categories').select('*').eq('business_id', bizData.id).eq('is_active', true),
+            supabase.from('products').select('*').eq('business_id', bizData.id).eq('status', 'published'),
+            supabase.from('stories').select('*').eq('business_id', bizData.id)
+          ]);
+
+          if (storeRes.data && settingsRes.data && storeRes.data.status === 'published') {
+            return {
+              business: bizData,
+              store: storeRes.data,
+              settings: settingsRes.data,
+              categories: catRes.data || [],
+              products: prodRes.data || [],
+              stories: storyRes.data || []
+            };
+          }
+        }
+      } catch (supabaseErr) {
+        console.warn('Client-side Supabase direct storefront fetch failed:', supabaseErr);
+      }
     }
 
     if (cleanSlug && DEMO_STORES_MAP[cleanSlug]) {
@@ -208,7 +244,36 @@ export const api = {
         return data.data;
       }
     } catch (err) {
-      console.warn('Backend product detail fetch failed, checking demo store:', err);
+      console.warn('Backend product detail fetch failed, checking fallback:', err);
+    }
+
+    // Direct Supabase query fallback for product
+    if (isSupabaseConfigured && cleanStoreSlug) {
+      try {
+        const { data: bizData } = await supabase
+          .from('businesses')
+          .select('*')
+          .eq('slug', cleanStoreSlug)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (bizData) {
+          const [settingsRes, prodRes] = await Promise.all([
+            supabase.from('store_settings').select('*').eq('business_id', bizData.id).maybeSingle(),
+            supabase.from('products').select('*').eq('business_id', bizData.id).eq('slug', productSlug).maybeSingle()
+          ]);
+
+          if (settingsRes.data && prodRes.data) {
+            return {
+              business: bizData,
+              settings: settingsRes.data,
+              product: prodRes.data
+            };
+          }
+        }
+      } catch (supabaseErr) {
+        console.warn('Client-side direct product detail query failed:', supabaseErr);
+      }
     }
 
     if (cleanStoreSlug && DEMO_STORES_MAP[cleanStoreSlug]) {
