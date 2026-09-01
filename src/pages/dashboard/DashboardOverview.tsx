@@ -33,6 +33,10 @@ export const DashboardOverview: React.FC = () => {
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showQR, setShowQR] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<any>(null);
+  const [runningDiagnostics, setRunningDiagnostics] = useState(false);
+  const [diagnosticsResult, setDiagnosticsResult] = useState<any>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,8 +45,23 @@ export const DashboardOverview: React.FC = () => {
     }
   }, [user]);
 
+  const runDiagnostics = async () => {
+    setRunningDiagnostics(true);
+    try {
+      const res = await fetch('/api/debug/diagnostics');
+      const data = await res.json();
+      setDiagnosticsResult(data);
+    } catch (err: any) {
+      setDiagnosticsResult({ error: err.message || 'Failed to reach API endpoint' });
+    } finally {
+      setRunningDiagnostics(false);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
+    setErrorDetails(null);
     try {
       const [bizRes, subRes] = await Promise.all([
         api.getMerchantBusiness(),
@@ -58,6 +77,8 @@ export const DashboardOverview: React.FC = () => {
         return;
       }
       console.error('Failed to load dashboard overview:', e);
+      setLoadError(e?.message || 'Failed to load dashboard data from API.');
+      setErrorDetails(e);
     } finally {
       setLoading(false);
     }
@@ -113,6 +134,50 @@ export const DashboardOverview: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      {/* Real-time Error Alert & Investigation Diagnostics */}
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-bold text-red-900">Failed to load live store data</h3>
+                <p className="text-xs text-red-700 mt-1 font-mono">{loadError}</p>
+                {errorDetails?.details && (
+                  <p className="text-xs text-red-600 mt-0.5 font-mono">{JSON.stringify(errorDetails.details)}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-white border-red-200 text-red-700 hover:bg-red-50 text-xs"
+                onClick={loadData}
+              >
+                Retry
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                onClick={runDiagnostics}
+                isLoading={runningDiagnostics}
+              >
+                Run Diagnostics
+              </Button>
+            </div>
+          </div>
+
+          {diagnosticsResult && (
+            <div className="mt-3 p-3 bg-slate-900 rounded-xl text-slate-200 text-xs font-mono overflow-x-auto space-y-2">
+              <div className="text-emerald-400 font-bold">API & Database Diagnostics:</div>
+              <pre>{JSON.stringify(diagnosticsResult, null, 2)}</pre>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Top Banner / Store Link Card */}
       <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-blue-500/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 relative z-10">

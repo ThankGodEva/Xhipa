@@ -726,7 +726,15 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
         }
       });
     } catch (err: any) {
-      return json({ success: false, error: { message: err.message || 'Failed to retrieve subscription.' } }, 500);
+      console.error('[Worker API Error] /api/merchant/subscription:', err);
+      return json({
+        success: false,
+        error: {
+          code: err.code || 'DATABASE_ERROR',
+          message: err.message || 'Failed to retrieve subscription.',
+          details: err.details || err.hint || (err.stack ? err.stack.split('\n')[0] : null)
+        }
+      }, 500);
     }
   }
 
@@ -883,7 +891,15 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
         }
       });
     } catch (err: any) {
-      return json({ success: false, error: { message: err.message || 'Failed to load overview.' } }, 500);
+      console.error('[Worker API Error] /api/merchant/overview:', err);
+      return json({
+        success: false,
+        error: {
+          code: err.code || 'DATABASE_ERROR',
+          message: err.message || 'Failed to load overview.',
+          details: err.details || err.hint || (err.stack ? err.stack.split('\n')[0] : null)
+        }
+      }, 500);
     }
   }
 
@@ -905,7 +921,15 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
         data: { business, store, settings, membership }
       });
     } catch (err: any) {
-      return json({ success: false, error: { message: err.message || 'Failed to load business profile.' } }, 500);
+      console.error('[Worker API Error] /api/merchant/business:', err);
+      return json({
+        success: false,
+        error: {
+          code: err.code || 'DATABASE_ERROR',
+          message: err.message || 'Failed to load business profile.',
+          details: err.details || err.hint || (err.stack ? err.stack.split('\n')[0] : null)
+        }
+      }, 500);
     }
   }
 

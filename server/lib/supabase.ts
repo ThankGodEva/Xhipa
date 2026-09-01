@@ -9,30 +9,44 @@ export function setSupabaseAdminClient(client: SupabaseClient | null): void {
 }
 
 export function isSupabaseConfigured(): boolean {
+  if (supabaseAdminClient) {
+    return true;
+  }
+  const url = (config.supabaseUrl || '').trim();
+  const key = (config.supabaseServiceRoleKey || config.supabaseAnonKey || '').trim();
   return Boolean(
-    config.supabaseUrl &&
-    !config.supabaseUrl.includes('placeholder') &&
-    !config.supabaseUrl.includes('your-project') &&
-    (config.supabaseServiceRoleKey || config.supabaseAnonKey)
+    url &&
+    !url.includes('placeholder') &&
+    !url.includes('your-project') &&
+    key &&
+    !key.includes('placeholder')
   );
 }
 
 export function getSupabaseAdmin(): SupabaseClient | null {
-  if (!isSupabaseConfigured()) {
-    return null;
+  if (supabaseAdminClient) {
+    return supabaseAdminClient;
   }
 
-  if (!supabaseAdminClient) {
-    const key = config.supabaseServiceRoleKey || config.supabaseAnonKey;
-    supabaseAdminClient = createClient(config.supabaseUrl, key, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    });
+  const url = (config.supabaseUrl || '').trim();
+  const key = (config.supabaseServiceRoleKey || config.supabaseAnonKey || '').trim();
+
+  if (url && key && !url.includes('placeholder') && !url.includes('your-project')) {
+    try {
+      supabaseAdminClient = createClient(url, key, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      });
+      return supabaseAdminClient;
+    } catch (err) {
+      console.error('[Supabase Init Error]:', err);
+      return null;
+    }
   }
 
-  return supabaseAdminClient;
+  return null;
 }
 
 export function getRequiredSupabase(): SupabaseClient {
@@ -42,3 +56,4 @@ export function getRequiredSupabase(): SupabaseClient {
   }
   return client;
 }
+

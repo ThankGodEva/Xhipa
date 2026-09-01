@@ -90,40 +90,71 @@ export default {
     const url = new URL(request.url);
     const method = request.method.toUpperCase();
 
+    // Helper to safely extract string environment variable regardless of casing or formatting
+    const getEnvString = (...keys: string[]): string => {
+      for (const k of keys) {
+        if (env && typeof (env as any)[k] === 'string') {
+          const val = ((env as any)[k] || '').trim().replace(/^["']|["']$/g, '');
+          if (val) return val;
+        }
+      }
+      // Also check case-insensitively across all env properties
+      if (env && typeof env === 'object') {
+        const lowerKeys = keys.map(k => k.toLowerCase());
+        for (const [propKey, propVal] of Object.entries(env)) {
+          if (lowerKeys.includes(propKey.toLowerCase()) && typeof propVal === 'string') {
+            const val = propVal.trim().replace(/^["']|["']$/g, '');
+            if (val) return val;
+          }
+        }
+      }
+      return '';
+    };
+
     // Initialize dynamic environment variables and Supabase Admin client for Worker runtime
-    const supabaseKey = (
-      env.SUPABASE_SERVICE_ROLE_KEY ||
-      env.SUPABASE_ANON_KEY ||
-      (env as any).SUPABASE_KEY ||
-      (env as any).VITE_SUPABASE_ANON_KEY ||
-      (env as any).VITE_SUPABASE_KEY ||
-      ''
-    ).trim();
+    const supabaseKey = getEnvString(
+      'SUPABASE_SERVICE_ROLE_KEY',
+      'SUPABASE_SERVICE_KEY',
+      'SUPABASE_SECRET_KEY',
+      'SUPABASE_KEY',
+      'SUPABASE_ANON_KEY',
+      'VITE_SUPABASE_ANON_KEY',
+      'VITE_SUPABASE_KEY'
+    );
 
-    const supabaseUrl = (
-      env.SUPABASE_URL ||
-      (env as any).VITE_SUPABASE_URL ||
-      ''
-    ).trim();
+    const supabaseUrl = getEnvString(
+      'SUPABASE_URL',
+      'VITE_SUPABASE_URL',
+      'NEXT_PUBLIC_SUPABASE_URL'
+    );
 
+    const paystackSecretKey = getEnvString('PAYSTACK_SECRET_KEY', 'PAYSTACK_SECRET');
+    const paystackPublicKey = getEnvString('PAYSTACK_PUBLIC_KEY', 'VITE_PAYSTACK_PUBLIC_KEY');
+
+    let workerSupabaseClient: any = null;
     if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
-      setSupabaseAdminClient(supabase);
+      try {
+        workerSupabaseClient = createClient(supabaseUrl, supabaseKey, {
+          auth: { autoRefreshToken: false, persistSession: false }
+        });
+        setSupabaseAdminClient(workerSupabaseClient);
+      } catch (clientErr) {
+        console.error('[Worker] Failed to create Supabase client:', clientErr);
+      }
     }
+
     setServerConfig({
       supabaseUrl,
       supabaseServiceRoleKey: supabaseKey,
-      supabaseAnonKey: (env.SUPABASE_ANON_KEY || (env as any).VITE_SUPABASE_ANON_KEY || supabaseKey).trim(),
-      paystackSecretKey: (env.PAYSTACK_SECRET_KEY || (env as any).PAYSTACK_SECRET || '').trim(),
-      paystackPublicKey: (env.PAYSTACK_PUBLIC_KEY || (env as any).VITE_PAYSTACK_PUBLIC_KEY || '').trim(),
-      r2AccountId: (env.CLOUDFLARE_R2_ACCOUNT_ID || (env as any).R2_ACCOUNT_ID || (env as any).CF_ACCOUNT_ID || '').trim(),
-      r2AccessKeyId: (env.CLOUDFLARE_R2_ACCESS_KEY_ID || (env as any).R2_ACCESS_KEY_ID || (env as any).AWS_ACCESS_KEY_ID || '').trim(),
-      r2SecretAccessKey: (env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || (env as any).R2_SECRET_ACCESS_KEY || (env as any).AWS_SECRET_ACCESS_KEY || '').trim(),
-      r2BucketName: (env.CLOUDFLARE_R2_BUCKET_NAME || (env as any).R2_BUCKET_NAME || (env as any).BUCKET_NAME || 'xhipa-storefront-media').trim(),
-      r2PublicUrl: (env.R2_PUBLIC_URL || (env as any).CLOUDFLARE_R2_PUBLIC_URL || (env as any).PUBLIC_R2_URL || '').trim(),
-      appUrl: env.APP_URL || url.origin || 'https://xhipa.com'
+      supabaseAnonKey: (getEnvString('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY') || supabaseKey),
+      paystackSecretKey,
+      paystackPublicKey,
+      r2AccountId: getEnvString('CLOUDFLARE_R2_ACCOUNT_ID', 'R2_ACCOUNT_ID', 'CF_ACCOUNT_ID'),
+      r2AccessKeyId: getEnvString('CLOUDFLARE_R2_ACCESS_KEY_ID', 'R2_ACCESS_KEY_ID', 'AWS_ACCESS_KEY_ID'),
+      r2SecretAccessKey: getEnvString('CLOUDFLARE_R2_SECRET_ACCESS_KEY', 'R2_SECRET_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY'),
+      r2BucketName: getEnvString('CLOUDFLARE_R2_BUCKET_NAME', 'R2_BUCKET_NAME', 'BUCKET_NAME') || 'xhipa',
+      r2PublicUrl: getEnvString('R2_PUBLIC_URL', 'CLOUDFLARE_R2_PUBLIC_URL', 'PUBLIC_R2_URL'),
+      appUrl: getEnvString('APP_URL') || url.origin || 'https://xhipa.com'
     });
 
     // 1. Handle CORS Preflight
@@ -131,16 +162,61 @@ export default {
       return handleCorsOptions();
     }
 
-    // 2. API Root & Health Status
-    if (url.pathname === '/' || url.pathname === '/api' || url.pathname === '/api/health' || url.pathname === '/health') {
+    // 2. Diagnostics & Health Status (GET /api/debug/diagnostics or /api/health)
+    if (
+      url.pathname === '/' ||
+      url.pathname === '/api' ||
+      url.pathname === '/api/health' ||
+      url.pathname === '/health' ||
+      url.pathname === '/api/debug/diagnostics' ||
+      url.pathname === '/api/diagnostics'
+    ) {
+      let dbTestResult: any = { status: 'untested' };
+      if (supabaseUrl && supabaseKey) {
+        try {
+          const testClient = workerSupabaseClient || createClient(supabaseUrl, supabaseKey);
+          const startTime = Date.now();
+          const { data, error } = await testClient.from('profiles').select('id').limit(1);
+          const latencyMs = Date.now() - startTime;
+          if (error) {
+            dbTestResult = {
+              status: 'error',
+              code: error.code,
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              latency_ms: latencyMs
+            };
+          } else {
+            dbTestResult = {
+              status: 'connected',
+              latency_ms: latencyMs,
+              profiles_count_sample: data?.length ?? 0
+            };
+          }
+        } catch (dbErr: any) {
+          dbTestResult = {
+            status: 'exception',
+            message: dbErr.message || String(dbErr)
+          };
+        }
+      }
+
       return jsonResponse({
         name: 'Xhipa API',
         status: 'online',
         runtime: 'Cloudflare Workers (Edge V8)',
         timestamp: new Date().toISOString(),
-        supabase_configured: Boolean(supabaseUrl && supabaseKey),
-        paystack_configured: Boolean(env.PAYSTACK_SECRET_KEY),
-        r2_configured: Boolean(env.R2_BUCKET),
+        environment: {
+          supabase_url_configured: Boolean(supabaseUrl),
+          supabase_url_sample: supabaseUrl ? `${supabaseUrl.substring(0, 16)}...` : 'not_set',
+          supabase_key_configured: Boolean(supabaseKey),
+          supabase_key_length: supabaseKey.length,
+          paystack_secret_configured: Boolean(paystackSecretKey),
+          paystack_public_configured: Boolean(paystackPublicKey),
+          r2_binding_configured: Boolean(env.R2_BUCKET)
+        },
+        database: dbTestResult,
         website: 'https://xhipa.com'
       });
     }
