@@ -48,8 +48,7 @@ export const DashboardOverview: React.FC = () => {
   const runDiagnostics = async () => {
     setRunningDiagnostics(true);
     try {
-      const res = await fetch('/api/debug/diagnostics');
-      const data = await res.json();
+      const data = await api.getDiagnostics();
       setDiagnosticsResult(data);
     } catch (err: any) {
       setDiagnosticsResult({ error: err.message || 'Failed to reach API endpoint' });

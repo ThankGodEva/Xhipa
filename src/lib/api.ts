@@ -17,7 +17,7 @@ import {
   ReviewStats,
 } from '../types';
 
-const resolveApiBase = (): string => {
+export const resolveApiBase = (): string => {
   const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
@@ -31,7 +31,7 @@ const resolveApiBase = (): string => {
   return '/api';
 };
 
-const API_BASE = resolveApiBase();
+export const API_BASE = resolveApiBase();
 
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('storefront_auth_token');
@@ -1162,5 +1162,10 @@ export const api = {
         endpoint: 'Not configured'
       };
     }
+  },
+
+  async getDiagnostics(): Promise<any> {
+    const res = await fetch(`${API_BASE}/debug/diagnostics`);
+    return safeParseJson(res, 'Failed to fetch API diagnostics');
   }
 };
