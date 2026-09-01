@@ -13,8 +13,8 @@ run_worker_first = true
 # Cloudflare R2 Bucket Binding for high-performance media storage
 [[r2_buckets]]
 binding = "R2_BUCKET"
-bucket_name = "xhipa-storefront-media"
-preview_bucket_name = "xhipa-storefront-media-preview"
+bucket_name = "xhipa"
+preview_bucket_name = "xhipa-preview"
 
 [vars]
 ENVIRONMENT = "production"

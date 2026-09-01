@@ -67,7 +67,7 @@ export function getR2Config(): R2Config {
     process.env.BUCKET_NAME ||
     process.env.R2_BUCKET ||
     (config as any)?.r2BucketName ||
-    'xhipa-storefront-media'
+    'xhipa'
   ).trim();
 
   const publicUrl = (

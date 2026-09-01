@@ -16,7 +16,7 @@ export const config = {
   r2AccountId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_ACCOUNT_ID || process.env?.R2_ACCOUNT_ID || process.env?.CF_ACCOUNT_ID || process.env?.CLOUDFLARE_ACCOUNT_ID || process.env?.ACCOUNT_ID)) || '',
   r2AccessKeyId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_ACCESS_KEY_ID || process.env?.R2_ACCESS_KEY_ID || process.env?.AWS_ACCESS_KEY_ID || process.env?.R2_KEY_ID || process.env?.CLOUDFLARE_ACCESS_KEY_ID)) || '',
   r2SecretAccessKey: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_SECRET_ACCESS_KEY || process.env?.R2_SECRET_ACCESS_KEY || process.env?.AWS_SECRET_ACCESS_KEY || process.env?.R2_SECRET || process.env?.CLOUDFLARE_SECRET_ACCESS_KEY)) || '',
-  r2BucketName: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_BUCKET_NAME || process.env?.R2_BUCKET_NAME || process.env?.CLOUDFLARE_BUCKET_NAME || process.env?.BUCKET_NAME || process.env?.R2_BUCKET)) || 'xhipa-storefront-media',
+  r2BucketName: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_BUCKET_NAME || process.env?.R2_BUCKET_NAME || process.env?.CLOUDFLARE_BUCKET_NAME || process.env?.BUCKET_NAME || process.env?.R2_BUCKET)) || 'xhipa',
   r2PublicUrl: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_PUBLIC_URL || process.env?.R2_PUBLIC_URL || process.env?.PUBLIC_R2_URL || process.env?.CLOUDFLARE_PUBLIC_URL || process.env?.R2_DEV_URL)) || '',
 };
 
