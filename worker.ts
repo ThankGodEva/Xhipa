@@ -131,16 +131,17 @@ export default {
       return handleCorsOptions();
     }
 
-    // 2. Health & Status
-    if (url.pathname === '/api/health' || url.pathname === '/health') {
+    // 2. API Root & Health Status
+    if (url.pathname === '/' || url.pathname === '/api' || url.pathname === '/api/health' || url.pathname === '/health') {
       return jsonResponse({
-        status: 'healthy',
+        name: 'Xhipa API',
+        status: 'online',
         runtime: 'Cloudflare Workers (Edge V8)',
         timestamp: new Date().toISOString(),
-        r2_configured: Boolean(env.R2_BUCKET),
         supabase_configured: Boolean(supabaseUrl && supabaseKey),
         paystack_configured: Boolean(env.PAYSTACK_SECRET_KEY),
-        assets_configured: Boolean(env.ASSETS)
+        r2_configured: Boolean(env.R2_BUCKET),
+        website: 'https://xhipa.com'
       });
     }
 
@@ -586,20 +587,14 @@ export default {
       }, 404);
     }
 
-    // 8. Cloudflare Workers Static Assets & React SPA Fallback
-    // Serves dist/assets/*, static files, and falls back to dist/index.html for SPA routes (e.g. /, /login, /dashboard, /pricing, /store/*)
-    if (env.ASSETS) {
-      return await env.ASSETS.fetch(request);
-    }
-
-    // Fallback if Worker is invoked without ASSETS binding
+    // 8. Fallback 404 Handler - strictly returns JSON for all unmatched requests on api.xhipa.com
     return jsonResponse({
       success: false,
       error: {
-        code: 'ASSETS_NOT_CONFIGURED',
-        message: 'Static asset binding ASSETS is not configured on this Worker instance.'
+        code: 'NOT_FOUND',
+        message: `Endpoint ${method} ${url.pathname} not found on Xhipa API.`
       }
-    }, 503);
+    }, 404);
   },
 
   /**
