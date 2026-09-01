@@ -17,7 +17,21 @@ import {
   ReviewStats,
 } from '../types';
 
-const API_BASE = '/api';
+const resolveApiBase = (): string => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'xhipa.com' || hostname === 'www.xhipa.com') {
+      return 'https://api.xhipa.com/api';
+    }
+  }
+  return '/api';
+};
+
+const API_BASE = resolveApiBase();
 
 function getAuthHeader(): Record<string, string> {
   const token = localStorage.getItem('storefront_auth_token');
@@ -71,8 +85,8 @@ export const api = {
         headers: getAuthHeader()
       });
       if (!res.ok) return null;
-      const data = await res.json();
-      return data.success && data.user ? { user: data.user } : null;
+      const data = await safeParseJson(res, 'Authentication verification failed');
+      return data && data.success && data.user ? { user: data.user } : null;
     } catch (e) {
       console.warn('getCurrentUser failed:', e);
       return null;
