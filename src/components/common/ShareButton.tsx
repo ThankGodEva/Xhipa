@@ -11,6 +11,7 @@ export interface ShareButtonProps {
   size?: 'sm' | 'md' | 'lg';
   className?: string;
   qrButtonClassName?: string;
+  compactOnMobile?: boolean;
 }
 
 export const ShareButton: React.FC<ShareButtonProps> = ({
@@ -19,7 +20,8 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   variant = 'outline',
   size = 'md',
   className = '',
-  qrButtonClassName = ''
+  qrButtonClassName = '',
+  compactOnMobile = false
 }) => {
   const [showQR, setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -51,21 +53,27 @@ export const ShareButton: React.FC<ShareButtonProps> = ({
   };
 
   const defaultQrStyles = variant === 'white-outline'
-    ? 'p-2 bg-white/10 hover:bg-white/20 text-white border border-white/25 rounded-xl transition cursor-pointer backdrop-blur-xs'
+    ? 'p-2 bg-white/10 hover:bg-white/20 text-white border border-white/25 rounded-xl transition cursor-pointer backdrop-blur-xs shrink-0'
     : variant === 'white'
-    ? 'p-2 bg-white hover:bg-blue-50 text-blue-600 border border-transparent rounded-xl shadow-sm transition cursor-pointer'
-    : 'p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition cursor-pointer bg-white';
+    ? 'p-2 bg-white hover:bg-blue-50 text-blue-600 border border-transparent rounded-xl shadow-sm transition cursor-pointer shrink-0'
+    : 'p-2 border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 transition cursor-pointer bg-white shrink-0';
 
   return (
     <>
-      <div className={`inline-flex items-center gap-1.5 ${className}`}>
+      <div className={`inline-flex items-center gap-1.5 shrink-0 ${className}`}>
         <Button
           variant={variant}
           size={size}
           leftIcon={copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
           onClick={handleShare}
+          className="shrink-0"
         >
-          {copied ? 'Copied' : 'Share Store'}
+          {copied ? 'Copied' : (
+            <>
+              <span>Share</span>
+              <span className={compactOnMobile ? 'hidden sm:inline ml-1' : 'ml-1'}>Store</span>
+            </>
+          )}
         </Button>
         <button
           type="button"

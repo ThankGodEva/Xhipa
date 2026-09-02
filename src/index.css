@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+/* Legacy WebKit, Safari & iOS 15 Fallbacks */
+@supports not (color: oklch(0.5 0.2 240)) {
+  .bg-blue-600 {
+    background-color: #2563EB !important;
+  }
+  .bg-blue-700 {
+    background-color: #1D4ED8 !important;
+  }
+  .bg-blue-800 {
+    background-color: #1E40AF !important;
+  }
+  .bg-blue-900 {
+    background-color: #1E3A8A !important;
+  }
+  .bg-slate-900 {
+    background-color: #0F172A !important;
+  }
+  .text-white {
+    color: #FFFFFF !important;
+  }
+  .text-blue-100 {
+    color: #DBEAFE !important;
+  }
+  .text-blue-900 {
+    color: #1E3A8A !important;
+  }
+}

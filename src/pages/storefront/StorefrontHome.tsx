@@ -166,7 +166,7 @@ export const StorefrontHome: React.FC = () => {
     : undefined;
 
   return (
-    <div className="min-h-screen bg-slate-50/70 flex flex-col">
+    <div className="min-h-screen bg-slate-50/70 flex flex-col w-full max-w-full overflow-x-hidden">
       {/* Sample Demo Store Banner */}
       {isDemo && <DemoStoreBanner storeName={business.name} />}
 

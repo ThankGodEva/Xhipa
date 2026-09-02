@@ -165,7 +165,13 @@ export const LandingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans selection:bg-blue-200 selection:text-blue-950 overflow-x-hidden">
       {/* Top Hero Section with Deep Blue Gradient & Atmospheric Illustrations */}
-      <section className="relative bg-gradient-to-b from-[#1D4ED8] via-[#2563EB] to-[#1E40AF] text-white pt-6 pb-28 sm:pb-36 overflow-hidden">
+      <section
+        className="relative bg-[#1D4ED8] bg-gradient-to-b from-[#1D4ED8] via-[#2563EB] to-[#1E40AF] text-white pt-6 pb-28 sm:pb-36 overflow-hidden"
+        style={{
+          backgroundColor: '#1D4ED8',
+          backgroundImage: 'linear-gradient(180deg, #1D4ED8 0%, #2563EB 50%, #1E40AF 100%)'
+        }}
+      >
         {/* Background Geometric Rings & Circles */}
         <div className="absolute top-10 left-10 w-48 h-48 rounded-full border border-white/15 pointer-events-none" />
         <div className="absolute -top-12 -left-12 w-80 h-80 rounded-full border border-white/10 pointer-events-none" />
@@ -243,7 +249,7 @@ export const LandingPage: React.FC = () => {
 
           {/* Mobile Drawer Menu */}
           {mobileMenuOpen && (
-            <div className="md:hidden mt-3 p-4 rounded-2xl bg-blue-900/95 backdrop-blur-md border border-white/20 space-y-3 text-xs font-semibold">
+            <div className="md:hidden mt-3 p-4 rounded-2xl bg-[#1E3A8A] border border-white/20 space-y-3 text-xs font-semibold shadow-2xl">
               <a
                 href="#how-it-works"
                 onClick={() => setMobileMenuOpen(false)}
@@ -309,14 +315,10 @@ export const LandingPage: React.FC = () => {
 
         {/* Hero Copy (Preserving all original writeups & buttons) */}
         <div className="max-w-4xl mx-auto px-4 text-center relative z-20 mb-10 sm:mb-14">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/15 text-white text-2xs sm:text-xs font-semibold mb-6 shadow-2xs backdrop-blur-md">
-            <span>Digital Storefront Infrastructure for Small Businesses</span>
-          </div>
-
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.15] mb-5 drop-shadow-xs max-w-3xl mx-auto">
             Your business deserves a <span className="underline decoration-cyan-300 underline-offset-8">place online</span>.
           </h1>
-          <p className="text-sm sm:text-base text-blue-100/90 max-w-2xl mx-auto mb-8 font-normal leading-relaxed">
+          <p className="text-sm sm:text-base text-blue-100 max-w-2xl mx-auto mb-8 font-normal leading-relaxed">
             Create your storefront, add your products, and share one simple link with your customers across WhatsApp, Instagram, and TikTok.
           </p>
 
@@ -330,7 +332,8 @@ export const LandingPage: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/chi-beauty')}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/40 backdrop-blur-md font-bold text-sm sm:text-base hover:scale-105 active:scale-100 transition-all duration-150 cursor-pointer w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-blue-900/40 hover:bg-blue-900/60 text-white border border-white/40 backdrop-blur-md font-bold text-sm sm:text-base hover:scale-105 active:scale-100 transition-all duration-150 cursor-pointer w-full sm:w-auto"
+              style={{ backgroundColor: 'rgba(30, 58, 138, 0.4)' }}
             >
               <ShoppingBag className="w-5 h-5 text-cyan-300 shrink-0" />
               <span className="text-white font-bold">Explore demo store</span>
@@ -772,7 +775,13 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Section 6: Final CTA Banner */}
-      <section className="py-20 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white text-center">
+      <section
+        className="py-20 bg-[#1D4ED8] bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white text-center"
+        style={{
+          backgroundColor: '#1D4ED8',
+          backgroundImage: 'linear-gradient(90deg, #1D4ED8 0%, #2563EB 50%, #4338CA 100%)'
+        }}
+      >
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
             Ready to give your business a permanent home online?
@@ -790,7 +799,8 @@ export const LandingPage: React.FC = () => {
             </button>
             <button
               onClick={() => navigate('/chi-beauty')}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white border border-white/40 font-bold text-sm sm:text-base transition cursor-pointer w-full sm:w-auto"
+              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl bg-blue-900/40 hover:bg-blue-900/60 text-white border border-white/40 font-bold text-sm sm:text-base transition cursor-pointer w-full sm:w-auto"
+              style={{ backgroundColor: 'rgba(30, 58, 138, 0.4)' }}
             >
               <span className="text-white font-bold">View demo store</span>
             </button>
@@ -799,7 +809,13 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Section 7: Deep Blue Ocean Footer */}
-      <footer className="relative bg-gradient-to-b from-[#1E40AF] via-[#172554] to-[#0F172A] text-white pt-16 pb-12 overflow-hidden">
+      <footer
+        className="relative bg-[#0F172A] bg-gradient-to-b from-[#1E40AF] via-[#172554] to-[#0F172A] text-white pt-16 pb-12 overflow-hidden"
+        style={{
+          backgroundColor: '#0F172A',
+          backgroundImage: 'linear-gradient(180deg, #1E40AF 0%, #172554 50%, #0F172A 100%)'
+        }}
+      >
         {/* Background Geometric Rings */}
         <div className="absolute top-12 left-8 w-32 h-32 rounded-full border border-white/10 pointer-events-none" />
         <div className="absolute bottom-10 right-12 w-48 h-48 rounded-full border border-white/10 pointer-events-none" />

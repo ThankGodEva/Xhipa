@@ -34,7 +34,6 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
   const { totalItems, setIsCartOpen } = useCart();
   const themeColor = settings.primary_color || '#10B981';
   const storeUrl = `${window.location.origin}/${storeSlug}`;
-  const instagramHandle = `@${storeSlug.replace(/-/g, '_')}`;
   const [logoError, setLogoError] = useState(false);
   const [bannerError, setBannerError] = useState(false);
   const resolvedLogo = resolveMediaUrl(business.logo_url);
@@ -69,9 +68,11 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/20 pointer-events-none" />
 
         {/* Banner Announcement Tag */}
-        <div className="absolute top-4 right-4 z-10 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-sm">
-          <span>Handmade Organic Formulations</span>
-        </div>
+        {business.category && (
+          <div className="absolute top-4 right-4 z-10 hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-white text-xs font-semibold shadow-sm">
+            <span>{business.category}</span>
+          </div>
+        )}
 
         {/* Delivery / Announcement Badge at Bottom Right of Banner */}
         <div className="absolute bottom-4 right-4 sm:right-6 z-10 flex items-center gap-2">
@@ -143,12 +144,11 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
                 </h1>
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 fill-emerald-50" />
               </div>
-              <p className="text-xs font-semibold text-slate-500">{instagramHandle}</p>
             </div>
           </div>
 
           {/* Action Row */}
-          <div className="flex items-center gap-2 pt-2 md:pt-0">
+          <div className="flex items-center flex-wrap gap-2 pt-2 md:pt-0 max-w-full">
             {settings.show_whatsapp && business.whatsapp_number && (
               <a
                 href={`https://wa.me/${business.whatsapp_number.replace(/[^\d]/g, '')}?text=${encodeURIComponent(
@@ -156,13 +156,14 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
                 )}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm cursor-pointer"
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-sm cursor-pointer shrink-0"
               >
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-100"></span>
                 </span>
-                <span>Chat on WhatsApp</span>
+                <span className="hidden xs:inline">Chat on WhatsApp</span>
+                <span className="xs:hidden">WhatsApp</span>
               </a>
             )}
 
@@ -170,15 +171,15 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
               <button
                 type="button"
                 onClick={() => setIsCartOpen(true)}
-                className="relative inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+                className="relative inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-xl text-xs font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 transition shadow-2xs cursor-pointer shrink-0"
                 title="Open Shopping Cart"
               >
-                <ShoppingCart className="w-4 h-4 text-slate-700" />
+                <ShoppingCart className="w-4 h-4 text-slate-700 shrink-0" />
                 <span className="hidden sm:inline">Cart</span>
                 {totalItems > 0 && (
                   <span
                     style={{ backgroundColor: themeColor }}
-                    className="px-1.5 py-0.5 rounded-full text-3xs font-extrabold text-white shadow-xs ml-0.5"
+                    className="px-1.5 py-0.2 rounded-full text-3xs font-extrabold text-white shadow-xs"
                   >
                     {totalItems}
                   </span>
@@ -191,13 +192,14 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
               storeName={business.name}
               variant="outline"
               size="md"
+              compactOnMobile={true}
             />
           </div>
         </div>
 
         {/* Bio & Details Area */}
         <div className="space-y-3">
-          {/* Desktop Title & Handle */}
+          {/* Desktop Title */}
           <div className="hidden md:block">
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">
@@ -207,9 +209,6 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
                 <BadgeCheck className="w-3.5 h-3.5 text-blue-600" />
               </span>
             </div>
-            <p className="text-xs font-semibold text-slate-400 mt-0.5">
-              {instagramHandle} • Organic Beauty & Skincare
-            </p>
           </div>
 
           {/* Description / Bio */}
