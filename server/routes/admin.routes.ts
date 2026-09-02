@@ -80,6 +80,39 @@ router.patch('/businesses/:id/status', async (req: AuthenticatedRequest, res: Re
 });
 
 /**
+ * PATCH /api/admin/businesses/:id/verify
+ * Toggle merchant verification status (Admin only)
+ */
+router.patch('/businesses/:id/verify', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { is_verified } = req.body;
+
+    if (typeof is_verified !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_VERIFICATION', message: 'is_verified must be a boolean.' }
+      });
+    }
+
+    const business = await adminRepository.updateBusinessVerification(id, is_verified);
+
+    return res.json({
+      success: true,
+      data: {
+        business,
+        message: `Business ${business.name} verification status is now ${is_verified ? 'VERIFIED' : 'UNVERIFIED'}.`
+      }
+    });
+  } catch (error: any) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: { code: error.code || 'VERIFICATION_FAILED', message: error.message || 'Failed to update verification status.' }
+    });
+  }
+});
+
+/**
  * GET /api/admin/platform/settings
  * Retrieve platform governance settings (e.g. affiliate visibility)
  */

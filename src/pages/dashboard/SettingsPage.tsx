@@ -545,7 +545,7 @@ export const SettingsPage: React.FC = () => {
 
           {/* Business Details & Brand Assets */}
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-2xs space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-xl text-blue-600">
                   <Store className="w-5 h-5" />
@@ -554,6 +554,26 @@ export const SettingsPage: React.FC = () => {
                   <h3 className="text-base font-bold text-slate-900">Business Profile & Brand Assets</h3>
                   <p className="text-xs text-slate-500">Contact information, store details and brand assets</p>
                 </div>
+              </div>
+
+              <div>
+                {business?.is_verified ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs"
+                    title="Your store has been verified by the platform admin"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 fill-emerald-100" />
+                    <span>Verified Merchant</span>
+                  </span>
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-50 text-slate-500 border border-slate-200"
+                    title="Platform admin verification required for verified tick"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-slate-400" />
+                    <span>Standard Store • Unverified</span>
+                  </span>
+                )}
               </div>
             </div>
 

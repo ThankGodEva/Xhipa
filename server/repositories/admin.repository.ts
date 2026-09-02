@@ -136,6 +136,7 @@ export class AdminRepository {
           city: b.city,
           address: b.address,
           status: b.status || 'active',
+          is_verified: Boolean(b.is_verified),
           created_at: b.created_at,
           updated_at: b.updated_at,
           storeSlug: effectiveSlug,
@@ -191,6 +192,29 @@ export class AdminRepository {
         .from('stores')
         .update({ status: storeStatus, updated_at: now })
         .eq('business_id', businessId);
+
+      return business as Business;
+    } catch (err) {
+      throw normalizeDatabaseError(err);
+    }
+  }
+
+  /**
+   * Update business verification status (Admin only)
+   */
+  async updateBusinessVerification(businessId: string, is_verified: boolean): Promise<Business> {
+    const supabase = getRequiredSupabase();
+    const now = new Date().toISOString();
+
+    try {
+      const { data: business, error: bizErr } = await supabase
+        .from('businesses')
+        .update({ is_verified, updated_at: now })
+        .eq('id', businessId)
+        .select('*')
+        .single();
+
+      if (bizErr) throw bizErr;
 
       return business as Business;
     } catch (err) {

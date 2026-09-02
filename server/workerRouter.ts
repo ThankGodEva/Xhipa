@@ -1482,6 +1482,22 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
       }
     }
 
+    // PATCH /api/admin/businesses/:id/verify
+    const adminBizVerifyMatch = path.match(/^\/api\/admin\/businesses\/([^\/]+)\/verify$/);
+    if (adminBizVerifyMatch && method === 'PATCH') {
+      const bizId = adminBizVerifyMatch[1];
+      try {
+        const body = (await request.json()) as any;
+        if (typeof body.is_verified !== 'boolean') {
+          return json({ success: false, error: { code: 'INVALID_VERIFICATION', message: 'is_verified must be a boolean.' } }, 400);
+        }
+        const business = await adminRepository.updateBusinessVerification(bizId, body.is_verified);
+        return json({ success: true, data: { business, message: `Business ${business.name} verification status is now ${body.is_verified ? 'VERIFIED' : 'UNVERIFIED'}.` } });
+      } catch (err: any) {
+        return json({ success: false, error: { message: err.message || 'Failed to update verification status.' } }, 500);
+      }
+    }
+
     // GET /api/admin/platform/settings
     if (path === '/api/admin/platform/settings' && method === 'GET') {
       try {

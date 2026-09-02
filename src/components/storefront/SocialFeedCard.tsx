@@ -123,7 +123,12 @@ export const SocialFeedCard: React.FC<SocialFeedCardProps> = ({
               <span className="text-xs font-bold text-slate-900 leading-tight">
                 {business.name}
               </span>
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 fill-emerald-50" />
+              {business.is_verified && (
+                <CheckCircle2
+                  className="w-3.5 h-3.5 text-emerald-600 fill-emerald-50 shrink-0"
+                  title="Verified Merchant by Admin"
+                />
+              )}
             </div>
             <p className="text-3xs text-slate-400">
               {product.category?.name || 'Featured Product'} • 2h ago

@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Ban,
   CheckCircle,
+  CheckCircle2,
   TrendingUp,
   Store,
   Crown,
@@ -115,6 +116,23 @@ export const AdminDashboard: React.FC = () => {
       success(`Business status updated to ${newStatus}`);
     } catch (err: any) {
       error(err.message || 'Failed to update status');
+    }
+  };
+
+  const handleToggleBusinessVerification = async (businessId: string, currentVerified?: boolean) => {
+    const newVerified = !currentVerified;
+    try {
+      await api.updateBusinessVerification(businessId, newVerified);
+      setBusinesses(prev =>
+        prev.map(b => (b.id === businessId ? { ...b, is_verified: newVerified } : b))
+      );
+      success(
+        newVerified
+          ? 'Merchant verified! The verification tick badge is now active on their storefront.'
+          : 'Merchant unverified. Verification tick removed.'
+      );
+    } catch (err: any) {
+      error(err.message || 'Failed to update verification status');
     }
   };
 
@@ -429,6 +447,7 @@ export const AdminDashboard: React.FC = () => {
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50/60 text-2xs uppercase tracking-wider text-slate-500 font-semibold">
                     <th className="py-3 px-4">Business</th>
+                    <th className="py-3 px-4">Verification</th>
                     <th className="py-3 px-4">Storefront Link</th>
                     <th className="py-3 px-4">Owner</th>
                     <th className="py-3 px-4">Plan</th>
@@ -452,6 +471,30 @@ export const AdminDashboard: React.FC = () => {
                           {biz.description && (
                             <div className="text-2xs text-slate-400 truncate max-w-xs">{biz.description}</div>
                           )}
+                        </td>
+
+                        <td className="py-3 px-4">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBusinessVerification(biz.id, biz.is_verified)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-bold transition cursor-pointer border shadow-2xs ${
+                              biz.is_verified
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700'
+                            }`}
+                            title={
+                              biz.is_verified
+                                ? 'Verified by Admin (Click to remove verified badge from storefront)'
+                                : 'Unverified (Click to grant verified checkmark on storefront)'
+                            }
+                          >
+                            <CheckCircle2
+                              className={`w-3.5 h-3.5 shrink-0 ${
+                                biz.is_verified ? 'text-emerald-600 fill-emerald-100' : 'text-slate-400'
+                              }`}
+                            />
+                            <span>{biz.is_verified ? 'Verified' : 'Unverified'}</span>
+                          </button>
                         </td>
 
                         <td className="py-3 px-4">

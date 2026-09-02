@@ -854,6 +854,16 @@ export const api = {
     return this.setBusinessStatus(id, status);
   },
 
+  async updateBusinessVerification(id: string, is_verified: boolean): Promise<any> {
+    const res = await fetch(`${API_BASE}/admin/businesses/${id}/verify`, {
+      method: 'PATCH',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ is_verified })
+    });
+    const data = await safeParseJson(res, 'Failed to update verification status');
+    return data.data;
+  },
+
   // ==========================================
   // AFFILIATE PROGRAM API
   // ==========================================

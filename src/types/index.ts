@@ -35,6 +35,7 @@ export interface Business {
   city?: string;
   address?: string;
   status: BusinessStatus;
+  is_verified?: boolean;
   created_at: string;
   updated_at: string;
 }

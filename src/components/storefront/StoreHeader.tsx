@@ -62,7 +62,12 @@ export const StoreHeader: React.FC<StoreHeaderProps> = ({
               <h1 className="text-xs sm:text-base font-extrabold text-white leading-snug truncate">
                 {business.name}
               </h1>
-              <CheckCircle2 className="w-3.5 h-3.5 text-white fill-white/20 shrink-0" />
+              {business.is_verified && (
+                <CheckCircle2
+                  className="w-3.5 h-3.5 text-white fill-white/20 shrink-0"
+                  title="Verified Merchant by Admin"
+                />
+              )}
             </div>
             <div className="flex items-center gap-1.5 text-3xs sm:text-2xs text-white/85 font-medium whitespace-nowrap min-w-0 overflow-hidden mt-0.5">
               <span className="inline-flex items-center gap-1 text-white font-semibold shrink-0">

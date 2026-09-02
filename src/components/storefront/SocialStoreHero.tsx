@@ -142,7 +142,12 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
                 <h1 className="text-xl font-extrabold text-slate-900 leading-tight truncate">
                   {business.name}
                 </h1>
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 fill-emerald-50" />
+                {business.is_verified && (
+                  <CheckCircle2
+                    className="w-4 h-4 text-emerald-600 shrink-0 fill-emerald-50"
+                    title="Verified Merchant by Admin"
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -205,9 +210,15 @@ export const SocialStoreHero: React.FC<SocialStoreHeroProps> = ({
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">
                 {business.name}
               </h1>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-blue-200/60">
-                <BadgeCheck className="w-3.5 h-3.5 text-blue-600" />
-              </span>
+              {business.is_verified && (
+                <span
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs"
+                  title="Verified Merchant by Admin"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 fill-emerald-100" />
+                  <span>Verified</span>
+                </span>
+              )}
             </div>
           </div>
 

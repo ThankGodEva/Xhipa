@@ -15,6 +15,7 @@ export const CHI_BEAUTY_DEMO_STORE: PublicStorefrontBundle = {
     city: 'Lekki, Lagos',
     address: '14 Admiralty Way, Lekki Phase 1, Lagos',
     status: 'active',
+    is_verified: true,
     logo_url: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=300&auto=format&fit=crop&q=80',
     created_at: new Date('2025-01-01').toISOString(),
     updated_at: new Date().toISOString()

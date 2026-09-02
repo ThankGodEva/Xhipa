@@ -180,8 +180,18 @@ export const DashboardOverview: React.FC = () => {
       {/* Top Banner / Store Link Card */}
       <div className="bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-blue-500/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative overflow-hidden">
         <div className="space-y-2 relative z-10">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-blue-100">Plan: <strong className="text-white">{subscription?.plan?.name || 'Starter'}</strong></span>
+            {storeData?.business?.is_verified ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 backdrop-blur-xs">
+                <CheckCircle className="w-3 h-3 text-emerald-300" />
+                Verified Merchant
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-medium bg-white/10 text-blue-100 border border-white/20">
+                Standard Merchant
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
             {storeName}
