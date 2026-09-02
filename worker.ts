@@ -426,7 +426,9 @@ export default {
             }
           });
 
-          const publicUrl = env.R2_PUBLIC_URL ? `${env.R2_PUBLIC_URL}/${key}` : `/api/media/${key}`;
+          const publicUrl = env.R2_PUBLIC_URL 
+            ? `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${key}` 
+            : `${url.origin}/api/media/${key}`;
 
           return jsonResponse({
             success: true,
@@ -454,7 +456,7 @@ export default {
             return jsonResponse({
               success: true,
               data: {
-                url: `/api/media/${key}`,
+                url: `${url.origin}/api/media/${key}`,
                 key,
                 filename: file.name,
                 mimetype: file.type,
@@ -471,7 +473,7 @@ export default {
         return jsonResponse({
           success: true,
           data: {
-            url: `/api/media/${key}`,
+            url: `${url.origin}/api/media/${key}`,
             key,
             filename: file.name,
             mimetype: file.type,
@@ -523,7 +525,9 @@ export default {
             }
           });
 
-          const publicUrl = env.R2_PUBLIC_URL ? `${env.R2_PUBLIC_URL}/${key}` : `/api/media/${key}`;
+          const publicUrl = env.R2_PUBLIC_URL 
+            ? `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${key}` 
+            : `${url.origin}/api/media/${key}`;
 
           return jsonResponse({
             success: true,
@@ -549,7 +553,7 @@ export default {
             return jsonResponse({
               success: true,
               data: {
-                url: `/api/media/${key}`,
+                url: `${url.origin}/api/media/${key}`,
                 key,
                 filename,
                 mimetype,
@@ -566,7 +570,7 @@ export default {
         return jsonResponse({
           success: true,
           data: {
-            url: `/api/media/${key}`,
+            url: `${url.origin}/api/media/${key}`,
             key,
             filename,
             mimetype,

@@ -237,6 +237,23 @@ export function getTikTokEmbedUrl(url: string): string | null {
 }
 
 /**
+ * Resolves the base URL for API & media proxy calls (handling standalone domains like xhipa.com vs api.xhipa.com)
+ */
+export function getApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname.endsWith('xhipa.com') && !hostname.startsWith('api.')) {
+      return 'https://api.xhipa.com/api';
+    }
+  }
+  return '/api';
+}
+
+/**
  * Safely resolves an image or media URL (handling absolute URLs, R2 keys, and relative backend proxy routes)
  */
 export function resolveMediaUrl(url?: string | null): string {
@@ -244,22 +261,40 @@ export function resolveMediaUrl(url?: string | null): string {
   const trimmed = url.trim();
   if (!trimmed) return '';
 
-  // Already a valid data URL
-  if (trimmed.startsWith('data:')) {
+  // Already a valid data URL or blob
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
     return trimmed;
   }
+
+  const apiBase = getApiBaseUrl();
 
   // If it's already a full http(s) URL
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     // If it points to an unconfigured placeholder domain, redirect through the media proxy
     if (trimmed.includes('media.xhipa.com') || trimmed.includes('pub-xxxx') || trimmed.includes('your-bucket')) {
-      const match = trimmed.match(/(branding|products|uploads|general)\/.+/);
-      if (match) return `/api/media/${match[0]}`;
+      const match = trimmed.match(/(branding|products|uploads|general|logos|banners|stories|merchants)\/.+/);
+      if (match) return `${apiBase}/media/${match[0]}`;
+    }
+    // If it points to xhipa.com/api/media/... (wrong host, should be api.xhipa.com), fix it
+    if (trimmed.includes('xhipa.com/api/media/') && !trimmed.includes('api.xhipa.com')) {
+      const key = trimmed.split('/api/media/')[1];
+      if (key) return `${apiBase}/media/${key}`;
     }
     return trimmed;
   }
 
-  // If it's already a root-relative path (e.g. /api/media/...)
+  // If it starts with /api/media/... or api/media/...
+  if (trimmed.startsWith('/api/media/')) {
+    const key = trimmed.replace(/^\/api\/media\//, '');
+    return `${apiBase}/media/${key}`;
+  }
+
+  if (trimmed.startsWith('api/media/')) {
+    const key = trimmed.replace(/^api\/media\//, '');
+    return `${apiBase}/media/${key}`;
+  }
+
+  // If it's a generic root-relative path (e.g. /demo/...)
   if (trimmed.startsWith('/')) {
     return trimmed;
   }
@@ -267,23 +302,27 @@ export function resolveMediaUrl(url?: string | null): string {
   // If it starts with media.xhipa.com or similar custom domain without protocol
   if (trimmed.startsWith('media.xhipa.com/')) {
     const key = trimmed.replace(/^media\.xhipa\.com\//, '');
-    return `/api/media/${key}`;
+    return `${apiBase}/media/${key}`;
   }
 
   // If it contains a raw .r2.dev domain without protocol
   if (trimmed.includes('.r2.dev/')) {
     const parts = trimmed.split('.r2.dev/');
-    if (parts[1]) return `/api/media/${parts[1]}`;
+    if (parts[1]) return `${apiBase}/media/${parts[1]}`;
   }
 
-  // If it's a bare storage key like branding/..., products/..., uploads/...
+  // If it's a bare storage key like branding/..., products/..., uploads/..., etc.
   if (
     trimmed.startsWith('branding/') ||
     trimmed.startsWith('products/') ||
     trimmed.startsWith('uploads/') ||
-    trimmed.startsWith('general/')
+    trimmed.startsWith('general/') ||
+    trimmed.startsWith('logos/') ||
+    trimmed.startsWith('banners/') ||
+    trimmed.startsWith('stories/') ||
+    trimmed.startsWith('merchants/')
   ) {
-    return `/api/media/${trimmed}`;
+    return `${apiBase}/media/${trimmed}`;
   }
 
   return trimmed;
@@ -376,7 +415,9 @@ export function normalizeMediaUrl(url?: string | null): string {
   const trimmed = url.trim();
   if (!trimmed) return '';
 
-  if (trimmed.startsWith('data:')) return trimmed;
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) return trimmed;
+
+  const apiBase = getApiBaseUrl();
 
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     if (
@@ -387,21 +428,35 @@ export function normalizeMediaUrl(url?: string | null): string {
       trimmed.includes('.r2.cloudflarestorage.com')
     ) {
       const match = trimmed.match(/(branding|products|uploads|general|logos|banners|stories|merchants)\/.+/);
-      if (match) return `/api/media/${match[0]}`;
+      if (match) return `${apiBase}/media/${match[0]}`;
+    }
+    if (trimmed.includes('xhipa.com/api/media/') && !trimmed.includes('api.xhipa.com')) {
+      const key = trimmed.split('/api/media/')[1];
+      if (key) return `${apiBase}/media/${key}`;
     }
     return trimmed;
+  }
+
+  if (trimmed.startsWith('/api/media/')) {
+    const key = trimmed.replace(/^\/api\/media\//, '');
+    return `${apiBase}/media/${key}`;
+  }
+
+  if (trimmed.startsWith('api/media/')) {
+    const key = trimmed.replace(/^api\/media\//, '');
+    return `${apiBase}/media/${key}`;
   }
 
   if (trimmed.startsWith('/')) return trimmed;
 
   if (trimmed.startsWith('media.xhipa.com/')) {
     const key = trimmed.replace(/^media\.xhipa\.com\//, '');
-    return `/api/media/${key}`;
+    return `${apiBase}/media/${key}`;
   }
 
   if (trimmed.includes('.r2.dev/')) {
     const parts = trimmed.split('.r2.dev/');
-    if (parts[1]) return `/api/media/${parts[1]}`;
+    if (parts[1]) return `${apiBase}/media/${parts[1]}`;
   }
 
   if (
@@ -414,7 +469,7 @@ export function normalizeMediaUrl(url?: string | null): string {
     trimmed.startsWith('stories/') ||
     trimmed.startsWith('merchants/')
   ) {
-    return `/api/media/${trimmed}`;
+    return `${apiBase}/media/${trimmed}`;
   }
 
   return trimmed;
