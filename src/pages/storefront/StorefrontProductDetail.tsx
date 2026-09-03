@@ -30,6 +30,7 @@ import { WhatsAppOrderModal } from '../../components/storefront/WhatsAppOrderMod
 import { WriteReviewModal } from '../../components/storefront/WriteReviewModal';
 import { DemoStoreBanner } from '../../components/storefront/DemoStoreBanner';
 import { isDemoStoreSlug } from '../../lib/demoStores';
+import { isCustomDomainHost } from '../../lib/hostname';
 import { TikTokPlayer } from '../../components/common/TikTokPlayer';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
@@ -58,29 +59,48 @@ export const StorefrontProductDetail: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!storeSlug || !productSlug) return;
+    if (!productSlug) return;
     setIsLoading(true);
 
-    api.getPublicProduct(storeSlug, productSlug)
-      .then(res => {
-        setProduct(res.product);
-        setBusiness(res.business);
-        setSettings(res.settings);
+    const loadProduct = async () => {
+      try {
+        let currentStoreSlug = storeSlug;
 
-        // Fetch reviews
-        api.getStoreReviews(storeSlug, res.product.id)
-          .then(revData => {
-            setReviews(revData.reviews || []);
-            setReviewStats(revData.stats || null);
-          })
-          .catch(() => {});
-      })
-      .catch(err => {
+        if (!currentStoreSlug && isCustomDomainHost()) {
+          const hostRes = await api.resolveStorefrontByHost();
+          if (hostRes.resolved && hostRes.business) {
+            currentStoreSlug = hostRes.business.slug;
+            setBusiness(hostRes.business);
+            setSettings(hostRes.settings || null);
+            const foundProd = hostRes.products?.find(p => p.slug === productSlug || p.id === productSlug);
+            if (foundProd) {
+              setProduct(foundProd);
+            }
+          }
+        }
+
+        if (currentStoreSlug) {
+          const res = await api.getPublicProduct(currentStoreSlug, productSlug);
+          setProduct(res.product);
+          setBusiness(res.business);
+          setSettings(res.settings);
+
+          // Fetch reviews
+          api.getStoreReviews(currentStoreSlug, res.product.id)
+            .then(revData => {
+              setReviews(revData.reviews || []);
+              setReviewStats(revData.stats || null);
+            })
+            .catch(() => {});
+        }
+      } catch (err: any) {
         console.error('Failed to load product:', err);
-      })
-      .finally(() => {
+      } finally {
         setIsLoading(false);
-      });
+      }
+    };
+
+    loadProduct();
   }, [storeSlug, productSlug]);
 
   if (isLoading) {

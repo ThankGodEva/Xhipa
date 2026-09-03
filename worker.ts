@@ -130,6 +130,9 @@ export default {
 
     const paystackSecretKey = getEnvString('PAYSTACK_SECRET_KEY', 'PAYSTACK_SECRET');
     const paystackPublicKey = getEnvString('PAYSTACK_PUBLIC_KEY', 'VITE_PAYSTACK_PUBLIC_KEY');
+    const cloudflareApiToken = getEnvString('CLOUDFLARE_API_TOKEN', 'CF_API_TOKEN', 'CLOUDFLARE_TOKEN');
+    const cloudflareZoneId = getEnvString('CLOUDFLARE_ZONE_ID', 'CF_ZONE_ID', 'ZONE_ID');
+    const cloudflareSaasTarget = getEnvString('CLOUDFLARE_SAAS_TARGET', 'SAAS_FALLBACK_CNAME', 'CUSTOM_DOMAIN_CNAME_TARGET') || 'saas.xhipa.com';
 
     let workerSupabaseClient: any = null;
     if (supabaseUrl && supabaseKey) {
@@ -149,6 +152,9 @@ export default {
       supabaseAnonKey: (getEnvString('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY') || supabaseKey),
       paystackSecretKey,
       paystackPublicKey,
+      cloudflareApiToken,
+      cloudflareZoneId,
+      cloudflareSaasTarget,
       r2AccountId: getEnvString('CLOUDFLARE_R2_ACCOUNT_ID', 'R2_ACCOUNT_ID', 'CF_ACCOUNT_ID'),
       r2AccessKeyId: getEnvString('CLOUDFLARE_R2_ACCESS_KEY_ID', 'R2_ACCESS_KEY_ID', 'AWS_ACCESS_KEY_ID'),
       r2SecretAccessKey: getEnvString('CLOUDFLARE_R2_SECRET_ACCESS_KEY', 'R2_SECRET_ACCESS_KEY', 'AWS_SECRET_ACCESS_KEY'),

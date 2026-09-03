@@ -840,9 +840,6 @@ export const LandingPage: React.FC = () => {
                 />
                 <span className="text-lg font-bold">Xhipa</span>
               </Link>
-              <p className="text-xs text-blue-200/70 leading-relaxed">
-                Digital storefront infrastructure for small businesses, Instagram sellers, and retailers.
-              </p>
             </div>
 
             {/* Column 2: Product & Modes */}

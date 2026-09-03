@@ -73,8 +73,8 @@ router.get('/validate-code/:code', async (req: Request, res: Response) => {
 router.get('/dashboard', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const protocol = req.protocol;
-    const host = req.get('host') || 'localhost:3000';
+    const protocol = (req.headers['x-forwarded-proto'] as string) || req.protocol || 'https';
+    const host = (req.headers['x-forwarded-host'] as string) || req.get('host') || 'localhost:3000';
     const appUrl = `${protocol}://${host}`;
 
     const dashboard = await affiliateService.getAffiliateDashboard(userId, appUrl);

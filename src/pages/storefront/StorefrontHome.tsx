@@ -33,6 +33,7 @@ import { CartDrawer } from '../../components/storefront/CartDrawer';
 import { WhatsAppOrderModal } from '../../components/storefront/WhatsAppOrderModal';
 import { DemoStoreBanner } from '../../components/storefront/DemoStoreBanner';
 import { isDemoStoreSlug } from '../../lib/demoStores';
+import { isCustomDomainHost } from '../../lib/hostname';
 import { Button } from '../../components/common/Button';
 import { resolveMediaUrl } from '../../lib/utils';
 
@@ -75,20 +76,39 @@ export const StorefrontHome: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!storeSlug) return;
     setIsLoading(true);
     setErrorState(null);
 
-    api.getPublicStore(storeSlug)
-      .then(res => {
-        setData(res);
-      })
-      .catch(err => {
+    const loadStore = async () => {
+      try {
+        if (storeSlug) {
+          const res = await api.getPublicStore(storeSlug);
+          setData(res);
+        } else if (isCustomDomainHost()) {
+          const res = await api.resolveStorefrontByHost();
+          if (res.resolved && res.storefront) {
+            setData({
+              business: res.storefront.business,
+              store: res.storefront.store,
+              settings: res.storefront.settings,
+              categories: res.storefront.categories,
+              products: res.storefront.products,
+              stories: res.storefront.stories
+            });
+          } else {
+            setErrorState(res.message || 'Custom domain not found or inactive.');
+          }
+        } else {
+          setErrorState('No store specified.');
+        }
+      } catch (err: any) {
         setErrorState(err.message || 'Store not found or unavailable');
-      })
-      .finally(() => {
+      } finally {
         setIsLoading(false);
-      });
+      }
+    };
+
+    loadStore();
   }, [storeSlug]);
 
   if (isLoading) {

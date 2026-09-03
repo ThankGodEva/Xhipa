@@ -3,8 +3,50 @@ import { storeService } from '../services/store.service';
 import { reviewRepository } from '../repositories/review.repository';
 import { orderRepository } from '../repositories/order.repository';
 import { merchantRepository } from '../repositories/merchant.repository';
+import { customDomainService } from '../services/customDomain.service';
 
 const router = Router();
+
+/**
+ * GET /api/storefront/resolve-host
+ * Resolves a custom domain hostname directly to the associated storefront bundle
+ */
+router.get('/resolve-host', async (req: Request, res: Response) => {
+  try {
+    const rawHostname = (req.query.hostname as string) || req.headers['x-forwarded-host'] as string || req.headers.host || '';
+    const result = await customDomainService.resolveStorefrontByHostname(rawHostname);
+
+    if (!result.resolved) {
+      const statusCode = result.status === 'suspended' ? 403 : result.status === 'pending' ? 409 : 404;
+      return res.status(statusCode).json({
+        success: false,
+        error: {
+          code: result.status === 'suspended' ? 'DOMAIN_SUSPENDED' : result.status === 'pending' ? 'DOMAIN_PENDING_VERIFICATION' : 'DOMAIN_NOT_FOUND',
+          message: result.message || 'Store not found for this custom domain.'
+        },
+        data: result
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: result.storefront || {
+        business: result.business,
+        store: result.store,
+        settings: result.settings,
+        categories: result.categories,
+        products: result.products,
+        stories: result.stories
+      }
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { code: 'HOST_RESOLUTION_ERROR', message: error.message || 'Failed to resolve host.' }
+    });
+  }
+});
+
 
 /**
  * GET /api/storefront/check-slug/:slug

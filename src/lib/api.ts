@@ -15,6 +15,9 @@ import {
   StoryHighlightGroup,
   StoreReview,
   ReviewStats,
+  CustomDomain,
+  CustomDomainDetailsResponse,
+  HostnameResolutionResult,
 } from '../types';
 
 export const resolveApiBase = (): string => {
@@ -1177,5 +1180,79 @@ export const api = {
   async getDiagnostics(): Promise<any> {
     const res = await fetch(`${API_BASE}/debug/diagnostics`);
     return safeParseJson(res, 'Failed to fetch API diagnostics');
+  },
+
+  // -------------------------------------------------------------
+  // CUSTOM DOMAINS (Cloudflare for SaaS)
+  // -------------------------------------------------------------
+
+  async getCustomDomains(): Promise<CustomDomainDetailsResponse[]> {
+    const res = await fetch(`${API_BASE}/merchant/custom-domains`, {
+      headers: getAuthHeader()
+    });
+    const data = await safeParseJson(res, 'Failed to fetch custom domains');
+    return data.data || [];
+  },
+
+  async addCustomDomain(hostname: string): Promise<CustomDomainDetailsResponse> {
+    const res = await fetch(`${API_BASE}/merchant/custom-domains`, {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ hostname })
+    });
+    const data = await safeParseJson(res, 'Failed to connect custom domain');
+    return data.data;
+  },
+
+  async getCustomDomainDetails(id: string): Promise<CustomDomainDetailsResponse> {
+    const res = await fetch(`${API_BASE}/merchant/custom-domains/${id}`, {
+      headers: getAuthHeader()
+    });
+    const data = await safeParseJson(res, 'Failed to get domain details');
+    return data.data;
+  },
+
+  async refreshCustomDomain(id: string): Promise<CustomDomainDetailsResponse> {
+    const res = await fetch(`${API_BASE}/merchant/custom-domains/${id}/refresh`, {
+      method: 'POST',
+      headers: getAuthHeader()
+    });
+    const data = await safeParseJson(res, 'Failed to check domain verification status');
+    return data.data;
+  },
+
+  async setPrimaryCustomDomain(id: string): Promise<CustomDomain> {
+    const res = await fetch(`${API_BASE}/merchant/custom-domains/${id}/set-primary`, {
+      method: 'POST',
+      headers: getAuthHeader()
+    });
+    const data = await safeParseJson(res, 'Failed to set primary domain');
+    return data.data;
+  },
+
+  async deleteCustomDomain(id: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/merchant/custom-domains/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    await safeParseJson(res, 'Failed to delete custom domain');
+  },
+
+  async resolveStorefrontByHost(hostname?: string): Promise<HostnameResolutionResult> {
+    const host = hostname || (typeof window !== 'undefined' ? window.location.hostname : '');
+    const res = await fetch(`${API_BASE}/storefront/resolve-host?hostname=${encodeURIComponent(host)}`);
+    const data = await safeParseJson(res, 'Failed to resolve domain');
+    return {
+      resolved: true,
+      status: 'active',
+      hostname: host,
+      storefront: data.data,
+      business: data.data?.business,
+      store: data.data?.store,
+      settings: data.data?.settings,
+      categories: data.data?.categories,
+      products: data.data?.products,
+      stories: data.data?.stories
+    };
   }
 };

@@ -1,29 +1,78 @@
 @import "tailwindcss";
 
-/* Legacy WebKit, Safari & iOS 15 Fallbacks */
+/* Custom micro typography utility classes */
+.text-3xs {
+  font-size: 0.625rem;
+  line-height: 0.875rem;
+}
+.text-2xs {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+}
+
+/* Comprehensive iOS 15 (iPhone 6s / WebKit 15) Fallbacks for oklch */
 @supports not (color: oklch(0.5 0.2 240)) {
-  .bg-blue-600 {
-    background-color: #2563EB !important;
-  }
-  .bg-blue-700 {
-    background-color: #1D4ED8 !important;
-  }
-  .bg-blue-800 {
-    background-color: #1E40AF !important;
-  }
-  .bg-blue-900 {
-    background-color: #1E3A8A !important;
-  }
-  .bg-slate-900 {
-    background-color: #0F172A !important;
-  }
-  .text-white {
-    color: #FFFFFF !important;
-  }
-  .text-blue-100 {
-    color: #DBEAFE !important;
-  }
-  .text-blue-900 {
-    color: #1E3A8A !important;
-  }
+  /* Text colors */
+  .text-white { color: #FFFFFF !important; }
+  .text-black { color: #000000 !important; }
+  .text-slate-900 { color: #0F172A !important; }
+  .text-slate-800 { color: #1E293B !important; }
+  .text-slate-700 { color: #334155 !important; }
+  .text-slate-600 { color: #475569 !important; }
+  .text-slate-500 { color: #64748B !important; }
+  .text-slate-400 { color: #94A3B8 !important; }
+  .text-slate-300 { color: #CBD5E1 !important; }
+  .text-blue-950 { color: #172554 !important; }
+  .text-blue-900 { color: #1E3A8A !important; }
+  .text-blue-800 { color: #1E40AF !important; }
+  .text-blue-700 { color: #1D4ED8 !important; }
+  .text-blue-600 { color: #2563EB !important; }
+  .text-blue-500 { color: #3B82F6 !important; }
+  .text-blue-200 { color: #BFDBFE !important; }
+  .text-blue-100 { color: #DBEAFE !important; }
+  .text-cyan-400 { color: #22D3EE !important; }
+  .text-cyan-300 { color: #67E8F9 !important; }
+  .text-emerald-700 { color: #047857 !important; }
+  .text-emerald-600 { color: #059669 !important; }
+  .text-emerald-500 { color: #10B981 !important; }
+  .text-rose-600 { color: #E11D48 !important; }
+  .text-rose-500 { color: #F43F5E !important; }
+  .text-amber-700 { color: #B45309 !important; }
+  .text-amber-600 { color: #D97706 !important; }
+  .text-amber-500 { color: #F59E0B !important; }
+
+  /* Background colors */
+  .bg-white { background-color: #FFFFFF !important; }
+  .bg-slate-950 { background-color: #020617 !important; }
+  .bg-slate-900 { background-color: #0F172A !important; }
+  .bg-slate-800 { background-color: #1E293B !important; }
+  .bg-slate-700 { background-color: #334155 !important; }
+  .bg-slate-100 { background-color: #F1F5F9 !important; }
+  .bg-slate-50 { background-color: #F8FAFC !important; }
+  .bg-blue-950 { background-color: #172554 !important; }
+  .bg-blue-900 { background-color: #1E3A8A !important; }
+  .bg-blue-800 { background-color: #1E40AF !important; }
+  .bg-blue-700 { background-color: #1D4ED8 !important; }
+  .bg-blue-600 { background-color: #2563EB !important; }
+  .bg-blue-500 { background-color: #3B82F6 !important; }
+  .bg-blue-100 { background-color: #DBEAFE !important; }
+  .bg-blue-50 { background-color: #EFF6FF !important; }
+  .bg-cyan-500 { background-color: #06B6D4 !important; }
+  .bg-emerald-600 { background-color: #059669 !important; }
+  .bg-emerald-50 { background-color: #ECFDF5 !important; }
+  .bg-rose-600 { background-color: #E11D48 !important; }
+  .bg-rose-50 { background-color: #FFF1F2 !important; }
+  .bg-amber-500 { background-color: #F59E0B !important; }
+  .bg-amber-50 { background-color: #FFFBEB !important; }
+
+  /* Border colors */
+  .border-white { border-color: #FFFFFF !important; }
+  .border-slate-100 { border-color: #F1F5F9 !important; }
+  .border-slate-200 { border-color: #E2E8F0 !important; }
+  .border-slate-300 { border-color: #CBD5E1 !important; }
+  .border-slate-900 { border-color: #0F172A !important; }
+  .border-blue-100 { border-color: #DBEAFE !important; }
+  .border-blue-200 { border-color: #BFDBFE !important; }
+  .border-blue-600 { border-color: #2563EB !important; }
+  .border-emerald-200 { border-color: #A7F3D0 !important; }
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Users,
   DollarSign,
@@ -11,14 +12,14 @@ import {
   FileCheck,
   RefreshCw,
   Search,
-  Filter
+  Filter,
+  ArrowLeft
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 export const AdminAffiliatesPage: React.FC = () => {
   const { user, isLoading: authLoading } = useAuth();
@@ -161,9 +162,48 @@ export const AdminAffiliatesPage: React.FC = () => {
   const totalDisbursed = payouts.reduce((sum, p) => sum + (p.amount || 0), 0);
 
   return (
-    <div className="space-y-8 pb-16">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="min-h-screen bg-slate-100 pb-16 font-sans">
+      {/* Admin Top Header */}
+      <header className="bg-slate-900 text-white sticky top-0 z-40 px-4 sm:px-8 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <img
+            src="/Xhipa.png"
+            alt="Xhipa Logo"
+            className="w-9 h-9 rounded-xl object-contain bg-white shadow-md p-0.5"
+          />
+          <div>
+            <h1 className="font-bold text-sm sm:text-base leading-tight">Xhipa Platform Admin</h1>
+            <p className="text-2xs text-purple-300">Multi-tenant Super Admin Portal & Controls</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link to="/admin">
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-purple-500/50 bg-purple-900/40 text-purple-200 hover:bg-purple-800"
+              leftIcon={<ArrowLeft className="w-3.5 h-3.5" />}
+            >
+              Main Admin Dashboard
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+            onClick={() => {
+              navigate('/dashboard');
+            }}
+          >
+            Go to Merchant Dashboard
+          </Button>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-semibold mb-2">
             <ShieldCheck className="w-3.5 h-3.5" />
@@ -589,6 +629,7 @@ export const AdminAffiliatesPage: React.FC = () => {
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 };

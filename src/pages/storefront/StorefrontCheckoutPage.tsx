@@ -24,6 +24,7 @@ import { Button } from '../../components/common/Button';
 import { StoreHeader } from '../../components/storefront/StoreHeader';
 import { DemoStoreBanner } from '../../components/storefront/DemoStoreBanner';
 import { isDemoStoreSlug } from '../../lib/demoStores';
+import { isCustomDomainHost } from '../../lib/hostname';
 
 export const StorefrontCheckoutPage: React.FC = () => {
   const { storeSlug } = useParams<{ storeSlug: string }>();
@@ -47,22 +48,41 @@ export const StorefrontCheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'whatsapp'>('paystack');
 
   useEffect(() => {
-    if (!storeSlug) return;
     setIsLoadingStore(true);
-    api.getPublicStore(storeSlug)
-      .then(res => {
-        setStoreData(res);
-        // Default payment method based on store settings
-        if (!res.settings.enable_checkout && res.settings.show_whatsapp) {
-          setPaymentMethod('whatsapp');
+
+    const loadCheckoutStore = async () => {
+      try {
+        if (storeSlug) {
+          const res = await api.getPublicStore(storeSlug);
+          setStoreData(res);
+          if (!res.settings.enable_checkout && res.settings.show_whatsapp) {
+            setPaymentMethod('whatsapp');
+          }
+        } else if (isCustomDomainHost()) {
+          const res = await api.resolveStorefrontByHost();
+          if (res.resolved && res.storefront) {
+            const sf = {
+              business: res.storefront.business,
+              store: res.storefront.store,
+              settings: res.storefront.settings,
+              categories: res.storefront.categories,
+              products: res.storefront.products,
+              stories: res.storefront.stories
+            };
+            setStoreData(sf);
+            if (!sf.settings.enable_checkout && sf.settings.show_whatsapp) {
+              setPaymentMethod('whatsapp');
+            }
+          }
         }
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('Failed to load store for checkout:', err);
-      })
-      .finally(() => {
+      } finally {
         setIsLoadingStore(false);
-      });
+      }
+    };
+
+    loadCheckoutStore();
   }, [storeSlug]);
 
   if (isLoadingStore) {

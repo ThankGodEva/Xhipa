@@ -25,9 +25,10 @@ import { toKobo, toNaira, resolveMediaUrl, optimizeImageForUpload } from '../../
 import { Button } from '../../components/common/Button';
 import { useToast } from '../../context/ToastContext';
 import { StoreStoriesManager } from '../../components/dashboard/StoreStoriesManager';
+import { CustomDomainManager } from '../../components/dashboard/CustomDomainManager';
 
 export const SettingsPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'general' | 'stories'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'stories' | 'domains'>('general');
   const [business, setBusiness] = useState<Business | null>(null);
   const [settings, setSettings] = useState<StoreSettings | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -373,10 +374,28 @@ export const SettingsPage: React.FC = () => {
             Live
           </span>
         </button>
+
+        <button
+          id="tab-custom-domains"
+          type="button"
+          onClick={() => setActiveTab('domains')}
+          className={`flex items-center gap-2 py-3 px-4 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+            activeTab === 'domains'
+              ? 'border-indigo-600 text-indigo-700'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Globe className="w-4 h-4 text-indigo-600" />
+          Custom Domain & Branding
+        </button>
       </div>
 
       {activeTab === 'stories' ? (
         <StoreStoriesManager products={products} />
+      ) : activeTab === 'domains' ? (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-2xs">
+          <CustomDomainManager businessSlug={storeSlug} storeName={businessName} />
+        </div>
       ) : (
         <form onSubmit={handleSave} className="space-y-8">
           {/* Quick Callout to Storefront Stories */}

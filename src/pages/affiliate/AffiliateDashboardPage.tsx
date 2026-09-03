@@ -83,16 +83,16 @@ export const AffiliateDashboardPage: React.FC = () => {
   }, [user, authLoading, navigate]);
 
   const handleCopyLink = () => {
-    if (!stats?.referral_url) return;
-    navigator.clipboard.writeText(stats.referral_url);
+    if (!referralUrl) return;
+    navigator.clipboard.writeText(referralUrl);
     setIsCopied(true);
     success('Referral link copied to clipboard!');
     setTimeout(() => setIsCopied(false), 2500);
   };
 
   const handleShareWhatsApp = () => {
-    if (!stats?.referral_url) return;
-    const text = `Hey! Check out Xhipa to build your professional online store with catalogue mode and online payments: ${stats.referral_url}`;
+    if (!referralUrl) return;
+    const text = `Hey! Check out Xhipa to build your professional online store with catalogue mode and online payments: ${referralUrl}`;
     const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
@@ -152,43 +152,48 @@ export const AffiliateDashboardPage: React.FC = () => {
     );
   }
 
+  const referralUrl = typeof window !== 'undefined' && stats.affiliate?.affiliate_code
+    ? `${window.location.origin}/register?ref=${stats.affiliate.affiliate_code}`
+    : (stats.referral_url || '');
+
   return (
     <div className="space-y-8 pb-16">
-      {/* Header Banner */}
-      <div className="relative overflow-hidden bg-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
-        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl pointer-events-none" />
+      {/* Header Banner - Blue Design */}
+      <div className="relative overflow-hidden bg-blue-600 sm:bg-gradient-to-r sm:from-blue-700 sm:via-blue-600 sm:to-indigo-600 rounded-3xl p-6 sm:p-8 text-white shadow-xl">
+        <div className="absolute top-0 right-0 -mt-8 -mr-8 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-12 w-64 h-64 bg-cyan-400/15 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-blue-300 text-xs font-semibold">
-              <Sparkles className="w-3.5 h-3.5" />
+          <div className="space-y-2.5 max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-white text-xs font-semibold backdrop-blur-xs">
+              <Sparkles className="w-3.5 h-3.5 text-blue-200" />
               <span>Xhipa Partner Program</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
               Affiliate & Referral Dashboard
             </h1>
-            <p className="text-slate-300 text-sm leading-relaxed">
-              Earn <span className="text-blue-400 font-bold">₦800</span> for every Nigerian business you refer that activates a paid plan.
+            <p className="text-blue-100 text-sm leading-relaxed">
+              Earn <span className="text-white font-extrabold bg-blue-800/80 px-2 py-0.5 rounded-md border border-blue-400/40">₦800</span> for every Nigerian business you refer that activates a paid plan.
             </p>
           </div>
 
           {/* Quick Referral Box */}
-          <div className="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 sm:p-5 flex flex-col gap-3 min-w-[300px]">
+          <div className="bg-blue-950/45 backdrop-blur-md border border-blue-300/30 rounded-2xl p-4 sm:p-5 flex flex-col gap-3 min-w-[300px] shadow-lg">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Your Referral Link</span>
-              <span className="text-2xs font-mono font-bold text-blue-400 bg-blue-900/50 px-2 py-0.5 rounded">
+              <span className="text-xs font-semibold text-blue-100 uppercase tracking-wider">Your Referral Link</span>
+              <span className="text-2xs font-mono font-bold text-white bg-blue-500/50 border border-blue-300/40 px-2.5 py-0.5 rounded-full">
                 {stats.affiliate.affiliate_code}
               </span>
             </div>
-            <div className="flex items-center gap-2 bg-slate-950/70 border border-slate-700 rounded-xl px-3 py-2">
+            <div className="flex items-center gap-2 bg-blue-950/70 border border-blue-400/30 rounded-xl px-3 py-2">
               <input
                 type="text"
                 readOnly
-                value={stats.referral_url}
-                className="bg-transparent text-xs text-slate-200 w-full focus:outline-none font-mono"
+                value={referralUrl}
+                className="bg-transparent text-xs text-blue-100 w-full focus:outline-none font-mono selection:bg-blue-500 selection:text-white"
               />
               <button
                 onClick={handleCopyLink}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer"
+                className="text-blue-200 hover:text-white p-1 rounded-lg hover:bg-blue-800/60 transition cursor-pointer"
                 title="Copy Link"
               >
                 {isCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
@@ -196,20 +201,20 @@ export const AffiliateDashboardPage: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <Button
-                variant="primary"
+                variant="white"
                 size="sm"
-                className="flex-1 text-xs"
+                className="flex-1 text-xs font-bold"
                 onClick={handleCopyLink}
-                leftIcon={isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                leftIcon={isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-blue-600" />}
               >
-                {isCopied ? 'Copied!' : 'Copy Referral Link'}
+                <span className="text-blue-700 font-bold">{isCopied ? 'Copied!' : 'Copy Referral Link'}</span>
               </Button>
               <Button
-                variant="outline"
+                variant="white-outline"
                 size="sm"
-                className="text-xs bg-slate-800 text-white border-slate-700 hover:bg-slate-700"
+                className="text-xs shrink-0"
                 onClick={handleShareWhatsApp}
-                leftIcon={<Share2 className="w-3.5 h-3.5" />}
+                leftIcon={<Share2 className="w-3.5 h-3.5 text-emerald-300" />}
               >
                 WhatsApp
               </Button>
@@ -670,7 +675,7 @@ export const AffiliateDashboardPage: React.FC = () => {
                     size="sm"
                     className="text-2xs"
                     onClick={() => {
-                      const text = `Are you still sending product pictures back and forth in WhatsApp DMs? 🛍️\n\nCreate a professional store on Xhipa with your own link, catalogue mode, and automated online checkout:\n${stats.referral_url}\n\nTakes less than 2 minutes to launch!`;
+                      const text = `Are you still sending product pictures back and forth in WhatsApp DMs? 🛍️\n\nCreate a professional store on Xhipa with your own link, catalogue mode, and automated online checkout:\n${referralUrl}\n\nTakes less than 2 minutes to launch!`;
                       navigator.clipboard.writeText(text);
                       success('WhatsApp message template copied!');
                     }}
@@ -679,7 +684,7 @@ export const AffiliateDashboardPage: React.FC = () => {
                   </Button>
                 </div>
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line">
-                  {`Are you still sending product pictures back and forth in WhatsApp DMs? 🛍️\n\nCreate a professional store on Xhipa with your own link, catalogue mode, and automated online checkout:\n${stats.referral_url}\n\nTakes less than 2 minutes to launch!`}
+                  {`Are you still sending product pictures back and forth in WhatsApp DMs? 🛍️\n\nCreate a professional store on Xhipa with your own link, catalogue mode, and automated online checkout:\n${referralUrl}\n\nTakes less than 2 minutes to launch!`}
                 </div>
               </div>
 
@@ -692,7 +697,7 @@ export const AffiliateDashboardPage: React.FC = () => {
                     size="sm"
                     className="text-2xs"
                     onClick={() => {
-                      const text = `Stop losing sales in Instagram DMs! Get your own branded online store and accept card payments & WhatsApp orders seamlessly. Launch free: ${stats.referral_url}`;
+                      const text = `Stop losing sales in Instagram DMs! Get your own branded online store and accept card payments & WhatsApp orders seamlessly. Launch free: ${referralUrl}`;
                       navigator.clipboard.writeText(text);
                       success('Instagram caption template copied!');
                     }}
@@ -701,7 +706,7 @@ export const AffiliateDashboardPage: React.FC = () => {
                   </Button>
                 </div>
                 <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-line">
-                  {`Stop losing sales in Instagram DMs! Get your own branded online store and accept card payments & WhatsApp orders seamlessly. Launch free: ${stats.referral_url}`}
+                  {`Stop losing sales in Instagram DMs! Get your own branded online store and accept card payments & WhatsApp orders seamlessly. Launch free: ${referralUrl}`}
                 </div>
               </div>
             </div>

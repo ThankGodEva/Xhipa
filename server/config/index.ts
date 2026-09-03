@@ -18,6 +18,11 @@ export const config = {
   r2SecretAccessKey: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_SECRET_ACCESS_KEY || process.env?.R2_SECRET_ACCESS_KEY || process.env?.AWS_SECRET_ACCESS_KEY || process.env?.R2_SECRET || process.env?.CLOUDFLARE_SECRET_ACCESS_KEY)) || '',
   r2BucketName: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_BUCKET_NAME || process.env?.R2_BUCKET_NAME || process.env?.CLOUDFLARE_BUCKET_NAME || process.env?.BUCKET_NAME || process.env?.R2_BUCKET)) || 'xhipa',
   r2PublicUrl: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_R2_PUBLIC_URL || process.env?.R2_PUBLIC_URL || process.env?.PUBLIC_R2_URL || process.env?.CLOUDFLARE_PUBLIC_URL || process.env?.R2_DEV_URL)) || '',
+
+  // Cloudflare for SaaS (Custom Hostnames)
+  cloudflareApiToken: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_API_TOKEN || process.env?.CF_API_TOKEN || process.env?.CLOUDFLARE_TOKEN)) || '',
+  cloudflareZoneId: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_ZONE_ID || process.env?.CF_ZONE_ID || process.env?.ZONE_ID)) || '',
+  cloudflareSaasTarget: (typeof process !== 'undefined' && (process.env?.CLOUDFLARE_SAAS_TARGET || process.env?.SAAS_FALLBACK_CNAME || process.env?.CUSTOM_DOMAIN_CNAME_TARGET)) || 'saas.xhipa.com',
 };
 
 export function setServerConfig(overrides: Partial<typeof config>): void {
@@ -42,6 +47,15 @@ export function setServerConfig(overrides: Partial<typeof config>): void {
     if (overrides.r2PublicUrl) {
       process.env.CLOUDFLARE_R2_PUBLIC_URL = overrides.r2PublicUrl;
       process.env.R2_PUBLIC_URL = overrides.r2PublicUrl;
+    }
+    if (overrides.cloudflareApiToken) {
+      process.env.CLOUDFLARE_API_TOKEN = overrides.cloudflareApiToken;
+    }
+    if (overrides.cloudflareZoneId) {
+      process.env.CLOUDFLARE_ZONE_ID = overrides.cloudflareZoneId;
+    }
+    if (overrides.cloudflareSaasTarget) {
+      process.env.CLOUDFLARE_SAAS_TARGET = overrides.cloudflareSaasTarget;
     }
   }
 }

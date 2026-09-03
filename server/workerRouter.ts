@@ -13,6 +13,7 @@ import { entitlementService } from './services/entitlement.service';
 import { affiliateService } from './services/affiliate.service';
 import { notificationService } from './services/notification.service';
 import { normalizeMediaUrl } from './services/r2Storage.service';
+import { customDomainService } from './services/customDomain.service';
 import { authenticateWorkerRequest } from './workerAuth';
 import { getRequiredSupabase, getSupabaseAdmin, isSupabaseConfigured } from './lib/supabase';
 import { slugify } from '../src/lib/utils';
@@ -75,6 +76,38 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
   // -------------------------------------------------------------
   // 1. PUBLIC STOREFRONT ROUTES
   // -------------------------------------------------------------
+
+  // GET /api/storefront/resolve-host
+  if (path === '/api/storefront/resolve-host' && method === 'GET') {
+    const rawHostname = url.searchParams.get('hostname') || request.headers.get('x-forwarded-host') || request.headers.get('host') || '';
+    try {
+      const result = await customDomainService.resolveStorefrontByHostname(rawHostname);
+      if (!result.resolved) {
+        const statusCode = result.status === 'suspended' ? 403 : result.status === 'pending' ? 409 : 404;
+        return json({
+          success: false,
+          error: {
+            code: result.status === 'suspended' ? 'DOMAIN_SUSPENDED' : result.status === 'pending' ? 'DOMAIN_PENDING_VERIFICATION' : 'DOMAIN_NOT_FOUND',
+            message: result.message || 'Store not found for this custom domain.'
+          },
+          data: result
+        }, statusCode);
+      }
+      return json({
+        success: true,
+        data: result.storefront || {
+          business: result.business,
+          store: result.store,
+          settings: result.settings,
+          categories: result.categories,
+          products: result.products,
+          stories: result.stories
+        }
+      });
+    } catch (err: any) {
+      return json({ success: false, error: { code: 'HOST_RESOLUTION_ERROR', message: err.message || 'Failed to resolve host.' } }, 500);
+    }
+  }
 
   // GET /api/storefront/check-slug/:slug
   if (path.startsWith('/api/storefront/check-slug/') && method === 'GET') {
@@ -1336,6 +1369,96 @@ export async function handleWorkerApiRoute(request: Request, url: URL): Promise<
       return json({ success: true, message: 'Review deleted.' });
     } catch (err: any) {
       return json({ success: false, error: { message: err.message || 'Failed to delete review.' } }, 500);
+    }
+  }
+
+  // -------------------------------------------------------------
+  // CUSTOM DOMAINS (Cloudflare for SaaS)
+  // -------------------------------------------------------------
+
+  // GET /api/merchant/custom-domains
+  if (path === '/api/merchant/custom-domains' && method === 'GET') {
+    const auth = await authenticateWorkerRequest(request);
+    if (auth.errorResponse || !auth.authContext) return auth.errorResponse!;
+    try {
+      const domains = await customDomainService.listDomains(auth.authContext.user.id);
+      return json({ success: true, data: domains });
+    } catch (err: any) {
+      const status = err.message?.includes('Permission') ? 403 : 500;
+      return json({ success: false, error: { message: err.message || 'Failed to fetch custom domains.' } }, status);
+    }
+  }
+
+  // POST /api/merchant/custom-domains
+  if (path === '/api/merchant/custom-domains' && method === 'POST') {
+    const auth = await authenticateWorkerRequest(request);
+    if (auth.errorResponse || !auth.authContext) return auth.errorResponse!;
+    try {
+      const body = (await request.json()) as any;
+      if (!body.hostname || typeof body.hostname !== 'string') {
+        return json({ success: false, error: { message: 'Domain name is required.' } }, 400);
+      }
+      const result = await customDomainService.createDomain(auth.authContext.user.id, body.hostname);
+      return json({ success: true, data: result }, 201);
+    } catch (err: any) {
+      const status = err.message?.includes('Permission') ? 403 : 400;
+      return json({ success: false, error: { message: err.message || 'Failed to register custom domain.' } }, status);
+    }
+  }
+
+  // GET /api/merchant/custom-domains/:id
+  const domainGetMatch = path.match(/^\/api\/merchant\/custom-domains\/([^\/]+)$/);
+  if (domainGetMatch && method === 'GET') {
+    const auth = await authenticateWorkerRequest(request);
+    if (auth.errorResponse || !auth.authContext) return auth.errorResponse!;
+    const domainId = domainGetMatch[1];
+    try {
+      const result = await customDomainService.getDomainDetails(auth.authContext.user.id, domainId);
+      return json({ success: true, data: result });
+    } catch (err: any) {
+      return json({ success: false, error: { message: err.message || 'Failed to get domain details.' } }, 404);
+    }
+  }
+
+  // POST /api/merchant/custom-domains/:id/refresh
+  const domainRefreshMatch = path.match(/^\/api\/merchant\/custom-domains\/([^\/]+)\/refresh$/);
+  if (domainRefreshMatch && method === 'POST') {
+    const auth = await authenticateWorkerRequest(request);
+    if (auth.errorResponse || !auth.authContext) return auth.errorResponse!;
+    const domainId = domainRefreshMatch[1];
+    try {
+      const result = await customDomainService.refreshDomainStatus(auth.authContext.user.id, domainId);
+      return json({ success: true, data: result });
+    } catch (err: any) {
+      return json({ success: false, error: { message: err.message || 'Failed to refresh domain status.' } }, 500);
+    }
+  }
+
+  // POST /api/merchant/custom-domains/:id/set-primary
+  const domainPrimaryMatch = path.match(/^\/api\/merchant\/custom-domains\/([^\/]+)\/set-primary$/);
+  if (domainPrimaryMatch && method === 'POST') {
+    const auth = await authenticateWorkerRequest(request);
+    if (auth.errorResponse || !auth.authContext) return auth.errorResponse!;
+    const domainId = domainPrimaryMatch[1];
+    try {
+      const result = await customDomainService.setPrimaryDomain(auth.authContext.user.id, domainId);
+      return json({ success: true, data: result });
+    } catch (err: any) {
+      return json({ success: false, error: { message: err.message || 'Failed to set primary domain.' } }, 500);
+    }
+  }
+
+  // DELETE /api/merchant/custom-domains/:id
+  if (domainGetMatch && method === 'DELETE') {
+    const auth = await authenticateWorkerRequest(request);
+    if (auth.errorResponse || !auth.authContext) return auth.errorResponse!;
+    const domainId = domainGetMatch[1];
+    try {
+      await customDomainService.deleteDomain(auth.authContext.user.id, domainId);
+      return json({ success: true, message: 'Custom domain removed successfully.' });
+    } catch (err: any) {
+      const status = err.message?.includes('Permission') ? 403 : 500;
+      return json({ success: false, error: { message: err.message || 'Failed to delete domain.' } }, status);
     }
   }
 

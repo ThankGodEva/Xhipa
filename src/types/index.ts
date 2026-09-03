@@ -438,3 +438,81 @@ export interface ReviewStats {
   };
 }
 
+export type CustomDomainStatus = 'pending' | 'pending_validation' | 'active' | 'failed' | 'suspended' | 'deleted';
+export type CustomDomainVerificationStatus = 'pending' | 'verified' | 'failed';
+export type CustomDomainSslStatus = 'initializing' | 'pending_validation' | 'pending_issuance' | 'pending_deployment' | 'active' | 'expired' | 'deleted';
+
+export interface CustomDomainValidationRecord {
+  type: string;
+  name: string;
+  value: string;
+  status?: string;
+  txt_name?: string;
+  txt_value?: string;
+}
+
+export interface CustomDomain {
+  id: string;
+  business_id: string;
+  hostname: string;
+  normalized_hostname: string;
+  status: CustomDomainStatus;
+  verification_status?: string;
+  ssl_status?: string;
+  cloudflare_hostname_id?: string;
+  cloudflare_status?: string;
+  cloudflare_ssl_status?: string;
+  validation_records?: CustomDomainValidationRecord[];
+  is_primary: boolean;
+  verified_at?: string;
+  last_checked_at?: string;
+  last_error?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DnsInstructionRecord {
+  type: 'CNAME' | 'TXT' | 'A';
+  name: string;
+  value: string;
+  target?: string;
+  description: string;
+  status?: string;
+}
+
+export interface CustomDomainDetailsResponse {
+  domain: CustomDomain;
+  dnsInstructions: {
+    cname: {
+      type: string;
+      name: string;
+      target: string;
+      description: string;
+    };
+    txtVerification?: {
+      type: string;
+      name: string;
+      value: string;
+      description: string;
+    };
+    records: DnsInstructionRecord[];
+    isApex: boolean;
+    apexGuidance?: string;
+  };
+}
+
+export interface HostnameResolutionResult {
+  resolved: boolean;
+  status?: 'active' | 'pending' | 'suspended' | 'not_found' | 'error';
+  hostname?: string;
+  business?: Business;
+  store?: Store;
+  settings?: StoreSettings;
+  categories?: Category[];
+  products?: Product[];
+  stories?: StoryHighlightGroup[];
+  storefront?: PublicStorefrontBundle;
+  message?: string;
+}
+
+

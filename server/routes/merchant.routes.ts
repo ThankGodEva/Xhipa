@@ -8,6 +8,7 @@ import { orderRepository } from '../repositories/order.repository';
 import { storyRepository } from '../repositories/story.repository';
 import { subscriptionRepository } from '../repositories/subscription.repository';
 import { reviewRepository } from '../repositories/review.repository';
+import { customDomainService } from '../services/customDomain.service';
 import { Category, Product, ProductImage, StoreSettings } from '../../src/types';
 import { slugify } from '../../src/lib/utils';
 import { uploadBase64ToR2, normalizeMediaUrl } from '../services/r2Storage.service';
@@ -985,6 +986,126 @@ router.delete('/reviews/:id', async (req: AuthenticatedRequest, res: Response) =
     return res.json({ success: true, message: 'Review deleted successfully.' });
   } catch (error: any) {
     return res.status(500).json({ success: false, error: { message: error.message || 'Failed to delete review.' } });
+  }
+});
+
+// ==============================================================================
+// CUSTOM DOMAINS (Cloudflare for SaaS)
+// ==============================================================================
+
+/**
+ * GET /api/merchant/custom-domains
+ * List all custom domains for the authenticated merchant
+ */
+router.get('/custom-domains', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const domains = await customDomainService.listDomains(req.user.id);
+    return res.json({ success: true, data: domains });
+  } catch (error: any) {
+    return res.status(error.message?.includes('Permission') ? 403 : 500).json({
+      success: false,
+      error: { message: error.message || 'Failed to fetch custom domains.' }
+    });
+  }
+});
+
+/**
+ * POST /api/merchant/custom-domains
+ * Connect a new custom domain
+ */
+router.post('/custom-domains', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const { hostname } = req.body;
+    if (!hostname || typeof hostname !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: { message: 'Please provide a valid domain name (e.g., shop.yourbrand.com).' }
+      });
+    }
+
+    const result = await customDomainService.createDomain(req.user.id, hostname);
+    return res.status(201).json({ success: true, data: result });
+  } catch (error: any) {
+    return res.status(error.message?.includes('Permission') ? 403 : 400).json({
+      success: false,
+      error: { message: error.message || 'Failed to register custom domain.' }
+    });
+  }
+});
+
+/**
+ * GET /api/merchant/custom-domains/:id
+ * Get single custom domain details & DNS configuration instructions
+ */
+router.get('/custom-domains/:id', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const result = await customDomainService.getDomainDetails(req.user.id, req.params.id);
+    return res.json({ success: true, data: result });
+  } catch (error: any) {
+    return res.status(error.message?.includes('access denied') ? 404 : 500).json({
+      success: false,
+      error: { message: error.message || 'Failed to get domain details.' }
+    });
+  }
+});
+
+/**
+ * POST /api/merchant/custom-domains/:id/refresh
+ * Refresh verification status and SSL certificate from Cloudflare
+ */
+router.post('/custom-domains/:id/refresh', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const result = await customDomainService.refreshDomainStatus(req.user.id, req.params.id);
+    return res.json({ success: true, data: result });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to check verification status.' }
+    });
+  }
+});
+
+/**
+ * POST /api/merchant/custom-domains/:id/set-primary
+ * Mark this custom domain as the primary domain for the merchant's store
+ */
+router.post('/custom-domains/:id/set-primary', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    const updated = await customDomainService.setPrimaryDomain(req.user.id, req.params.id);
+    return res.json({ success: true, data: updated });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      error: { message: error.message || 'Failed to set primary domain.' }
+    });
+  }
+});
+
+/**
+ * DELETE /api/merchant/custom-domains/:id
+ * Remove custom domain from store and delete from Cloudflare
+ */
+router.delete('/custom-domains/:id', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user) return res.status(401).json({ success: false, error: { message: 'Unauthorized' } });
+
+  try {
+    await customDomainService.deleteDomain(req.user.id, req.params.id);
+    return res.json({ success: true, message: 'Custom domain removed successfully.' });
+  } catch (error: any) {
+    return res.status(error.message?.includes('Permission') ? 403 : 500).json({
+      success: false,
+      error: { message: error.message || 'Failed to delete custom domain.' }
+    });
   }
 });
 
